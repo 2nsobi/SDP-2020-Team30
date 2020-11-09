@@ -21,7 +21,11 @@ class WindowsSoftAP:
 
     def get_ipv4(self):
         if not self.ipv4:
-            print('this WindowsSoftAP instance has no associated IP, must run WindowsSoftAP.start_ap() first')
+            self.ipv4 = self._get_ipv4()
+            if not self.ipv4:
+                print('this WindowsSoftAP instance has no associated IP, must run WindowsSoftAP.start_ap() first')
+            else:
+                return self.ipv4
         else:
             return self.ipv4
 
