@@ -2,6 +2,8 @@ import socket
 import sys
 from windows_ap import WindowsSoftAP
 import util
+from server import Server
+
 
 def main():
     # setup and start windows "hostednetwork" soft AP
@@ -9,63 +11,31 @@ def main():
     ap.start_ap()
     server_ip = ap.get_ipv4()
 
-    # Create a TCP/IP socket
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    # Create and start server for communicating with boards
+    server = Server(server_ip, board_count=1)
 
-    # Bind the socket to the port
-    server_address = (server_ip, 10000)     # (socket.gethostname(), 10000)
-    print(sys.stderr, f'starting up on {socket.gethostbyname(server_address[0])} port {server_address[1]}')
-    sock.bind(server_address)
+    # start_server() returns socket for server that is already listening for incoming connections
+    server_entry_socket = server.start_server()
 
-    # Listen for incoming connections
-    sock.listen(1)
+    retval = server.wait_for_all_boards_to_connect()
 
-    cc3220sf_ip_str = None
+    if retval < 0:
+        # ap.stop_ap()
+        return 0
 
-    while not cc3220sf_ip_str:
-        # Wait for a connection
-        print(sys.stderr, 'waiting for a connection')
-        connection, client_address = sock.accept()
+    while True:
+        msg = input('Enter msg to send to all boards: ')
 
-        try:
-            print(sys.stderr, 'connection from', client_address)
+        server.send_msg_to_all_boards(msg)
 
-            # Receive the data in small chunks and retransmit it
-            while True:
-                data = connection.recv(25)
-                if data:
-                    print(sys.stderr, 'received packets with data, bytes: "%s"' % data)
-                    buf = str(data, encoding='utf-8')
-                    if 'cc3220sf ipv4' in buf:
-                        cc3220sf_ip_str = util.int_ip_to_ip_str(int(buf.strip().split(sep=':')[1]))
-                        print(sys.stderr, 'extracted ip: "%s"' % cc3220sf_ip_str)
-                else:
-                    print(sys.stderr, 'no more data from', client_address)
-                    break
+        if msg == 'exit':
+            # make sure to send "exit" msg to send_msg_to_all_boards() before exiting so that all child threads are
+            # closed as well
+            return 0
 
-        finally:
-            # Clean up the connection
-            connection.close()
-
-    wait_for_my_input = input()
-
-    # Create a TCP/IP socket
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-
-    # Connect the socket to the port where the server is listening
-    server_address = ("192.168.137.216", 10000)  # (cc3220sf_ip_str, 10000)
-    print(sys.stderr, 'connecting to %s port %s' % server_address)
-    sock.connect(server_address)
-
-    try:
-        # Send data
-        message = b'whats up'
-        print(sys.stderr, 'sending "%s"' % message)
-        sock.sendall(message)
-
-    finally:
-        print(sys.stderr, 'closing socket')
-        sock.close()
+        for i, board_ip in enumerate(server.boards):
+            print(f'[board {i}] response from board with ip {board_ip}:\n{server.boards[board_ip]["last_response"]}')
+        print()
 
 
 if __name__ == "__main__":

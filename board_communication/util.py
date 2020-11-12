@@ -83,6 +83,12 @@ def run_cmd(cmd_str, show=True):
     return proc.stdout.strip()
 
 
+def strip_end_bytes(bytes_str):
+    decoded_str = str(bytes_str.split(b'\x00', 1)[0],
+                      encoding='utf-8')
+    return decoded_str
+
+
 if __name__ == "__main__":
     print(bytes_ip_to_ip_str(b'\xe8\x89\xa8\xc0'))
     print(hex_ip_to_ip_str('c0a889df'))

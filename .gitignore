@@ -139,3 +139,6 @@ cython_debug/
 
 # pycharm
 .idea/
+
+# local folders
+/my_tests
