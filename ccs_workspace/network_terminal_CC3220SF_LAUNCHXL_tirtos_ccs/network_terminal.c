@@ -1902,10 +1902,10 @@ void * mainThread(void *arg)
     UART_PRINT("[nnaji] port received in hex again: \"%x\"\n\r",portForTX);
 
     /* test transmitting packets continuously to AP */
-//    transmit_data_forever_test(portForTX);
+    transmit_data_forever_test(portForTX);
 
     /* test time drift */
-    time_drift_test(portForTX);
+//    time_drift_test(portForTX);
 
     /*
      * Calling UART handling method which serves as the application main loop.
