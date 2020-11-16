@@ -1,4 +1,4 @@
-from .pylive import live_plotter_xy
+from pylive import live_plotter_xy
 import numpy as np
 
 size = 10
