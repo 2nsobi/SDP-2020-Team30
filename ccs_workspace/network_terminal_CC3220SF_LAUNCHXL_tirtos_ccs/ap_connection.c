@@ -472,7 +472,7 @@ int32_t transmit_data_forever_test(uint16_t sockPort)
     while(1)
     {
         memset(custom_msg,0,strlen(custom_msg));
-        sprintf(custom_msg,"%i,%.10f", i, sin((double)i));
+        sprintf(custom_msg,"%i,%.10f", i, sin((double)(i/40.0)));
 
         /* Send packets to the server */
         status = sl_Send(sock, &custom_msg, buflen, 0);

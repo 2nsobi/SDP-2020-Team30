@@ -1,9 +1,9 @@
 import socket
 import sys
 from windows_ap import WindowsSoftAP
-import util
+from util import util
 from server import Server
-from pylive import live_plotter_xy
+from util.pylive import live_plotter_xy,printy
 import time
 import numpy as np
 
@@ -46,7 +46,7 @@ def main():
     """
     For plotting data stream
     """
-    max_period = 20
+    max_period = 300
     x_vecs = []
     y_vecs = []
     for _ in range(len(server.boards)):

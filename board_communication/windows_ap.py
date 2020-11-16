@@ -1,6 +1,6 @@
 import subprocess
 import re
-from util import run_cmd
+from util.util import run_cmd
 from concurrent.futures import ThreadPoolExecutor
 
 class WindowsSoftAP:

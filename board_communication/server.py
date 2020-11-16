@@ -1,8 +1,8 @@
 import socket
-import util
+from util import util
 import threading
 import time
-from pylive import live_plotter_xy
+from util.pylive import live_plotter_xy
 import numpy as np
 from collections import deque
 
