@@ -388,7 +388,7 @@ int32_t transmit_data_forever_test(uint16_t sockPort)
     uint8_t notBlocking = 0;
 
     uint32_t sent_bytes = 0;
-    uint32_t buflen = 50;
+    uint32_t buflen = 25;
     uint8_t custom_msg[buflen];
 
     UART_PRINT("\n\rsockPort: %x\n\r",sockPort);
@@ -464,7 +464,7 @@ int32_t transmit_data_forever_test(uint16_t sockPort)
     i = 0;
 
     /////////////////////////////////////////////
-    // send IP of this device to AP
+    // send sine(i) forever to AP
     /////////////////////////////////////////////
 
     UART_PRINT("[nnaji msg] buflen: %i\n\r",buflen);
@@ -472,7 +472,7 @@ int32_t transmit_data_forever_test(uint16_t sockPort)
     while(1)
     {
         memset(custom_msg,0,strlen(custom_msg));
-        sprintf(custom_msg,"i=%i, sin(i)=%.10f", i, sin((double)i));
+        sprintf(custom_msg,"%i,%.10f", i, sin((double)(i/40.0)));
 
         /* Send packets to the server */
         status = sl_Send(sock, &custom_msg, buflen, 0);
@@ -491,8 +491,7 @@ int32_t transmit_data_forever_test(uint16_t sockPort)
 
 
         sent_bytes += status;
-        UART_PRINT("[nnaji] bytes sent to far (i=%i): %i\n\r", i, sent_bytes);
-
+//        UART_PRINT("[nnaji] bytes sent to far (i=%i): %i\n\r", i, sent_bytes);
         i++;
     }
 

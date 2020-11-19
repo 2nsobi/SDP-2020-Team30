@@ -1,7 +1,10 @@
 import socket
-import util
+from util import util
 import threading
 import time
+from util.pylive import live_plotter_xy
+import numpy as np
+from collections import deque
 
 # make sure this matches the ENTRY_PORT global macro in the cc3220sf ap_connection.c code as well
 ENTRY_PORT = 10000
@@ -96,11 +99,16 @@ class Server:
         self.boards[ipv4] = {"ipv4": ipv4,
                              "socket_this_side": socket_this_side,
                              "port_this_side": socket_address[1],
-                             "last_response": None}
+                             "last_response": None,
+                             "stream_data": deque()}
 
-        thread = threading.Thread(target=wait_to_send_msgs,
+        # thread = threading.Thread(target=wait_to_send_msgs,
+        #                           args=(socket_this_side, self.boards[ipv4],
+        #                                 self.start_flag, self.end_flag, self.exit_flag))
+
+        thread = threading.Thread(target=wait_and_plot_incoming_data,
                                   args=(socket_this_side, self.boards[ipv4],
-                                        self.start_flag, self.end_flag, self.exit_flag))
+                                        self.exit_flag))
         thread.start()
         self.boards[ipv4]['thread'] = thread
 
@@ -178,6 +186,26 @@ def wait_to_send_msgs(sock, coms_dict, start_flag, end_flag, exit_flag):
                 # wait to start next loop iteration this will occur once all threads have completed their tasks
                 # which is indicated by when thread_tasks_done == # of threads
                 end_flag.wait()
+        finally:
+            # Clean up the connection
+            connection.close()
+    return 0
+
+
+def wait_and_plot_incoming_data(sock, coms_dict, exit_flag):
+    max_buffer_size = 600000
+    while not exit_flag.is_set():
+        # Wait for a connection
+        connection, client_address = sock.accept()
+
+        try:
+            while not exit_flag.is_set():
+                data = connection.recv(25)
+                if data:
+                    x, y = util.strip_end_bytes(data).split(',')
+                    coms_dict['stream_data'].append((int(x), float(y)))
+                    if len(coms_dict['stream_data']) >= max_buffer_size:
+                        coms_dict['stream_data'].popleft()
         finally:
             # Clean up the connection
             connection.close()
