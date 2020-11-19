@@ -1,0 +1,57 @@
+/**
+ * These arguments were used when this file was generated. They will be automatically applied on subsequent loads
+ * via the GUI or CLI. Run CLI with '--help' for additional information on how to override these arguments.
+ * @cliArgs --board "/ti/boards/CC3220SF_LAUNCHXL" --product "simplelink_cc32xx_sdk@4.30.00.06"
+ * @versions {"data":"2020090214","timestamp":"2020090214","tool":"1.6.0+1543","templates":"2020090214"}
+ */
+
+/**
+ * Import the modules used in this configuration.
+ */
+const Display  = scripting.addModule("/ti/display/Display");
+const Display1 = Display.addInstance();
+const ADC      = scripting.addModule("/ti/drivers/ADC");
+const ADC1     = ADC.addInstance();
+const ADC2     = ADC.addInstance();
+const ADC3     = ADC.addInstance();
+const RTOS     = scripting.addModule("/ti/drivers/RTOS");
+const Timer    = scripting.addModule("/ti/drivers/Timer", {}, false);
+const Timer1   = Timer.addInstance();
+
+/**
+ * Write custom configuration values to the imported modules.
+ */
+Display1.$name      = "CONFIG_Display_0";
+Display1.$hardware  = system.deviceData.board.components.XDS110UART;
+Display1.uart.$name = "CONFIG_UART_0";
+
+ADC1.$name     = "CONFIG_ADC_0";
+ADC1.$hardware = system.deviceData.board.components.OPA4342.subComponents.AIN3;
+
+ADC2.$name     = "CONFIG_ADC_1";
+ADC2.$hardware = system.deviceData.board.components.OPA4342.subComponents.AIN4;
+
+ADC3.$name     = "CONFIG_ADC_2";
+ADC3.$hardware = system.deviceData.board.components.OPA4342.subComponents.AIN2;
+
+const Power          = scripting.addModule("/ti/drivers/Power", {}, false);
+Power.parkPins.$name = "ti_drivers_power_PowerCC32XXPins0";
+
+Timer1.$name     = "CONFIG_TIMER_0";
+Timer1.timerType = "32 Bits";
+
+/**
+ * Pinmux solution for unlocked pins/peripherals. This ensures that minor changes to the automatic solver in a future
+ * version of the tool will not impact the pinmux you originally saw.  These lines can be completely deleted in order to
+ * re-solve from scratch.
+ */
+Display1.uart.uart.$suggestSolution       = "UART0";
+Display1.uart.uart.txPin.$suggestSolution = "GP01";
+Display1.uart.uart.rxPin.$suggestSolution = "GP02";
+ADC1.adc.$suggestSolution                 = "ADC0";
+ADC1.adc.adcPin.$suggestSolution          = "boosterpack.26";
+ADC2.adc.$suggestSolution                 = "ADC0";
+ADC2.adc.adcPin.$suggestSolution          = "boosterpack.24";
+ADC3.adc.$suggestSolution                 = "ADC0";
+ADC3.adc.adcPin.$suggestSolution          = "boosterpack.2";
+Timer1.timer.$suggestSolution             = "Timer0";
