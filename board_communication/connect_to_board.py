@@ -3,7 +3,7 @@ import sys
 from windows_ap import WindowsSoftAP
 from util import util
 from server import Server
-from util.pylive import live_plotter_xy,printy
+from util.pylive import live_plotter_xy
 import time
 import numpy as np
 
@@ -46,29 +46,56 @@ def main():
     """
     For plotting data stream
     """
-    max_period = 300
+    max_period = 50
     x_vecs = []
     y_vecs = []
-    for _ in range(len(server.boards)):
-        x_vecs.append(np.zeros(max_period))
-        y_vecs.append(np.zeros(max_period))
+    y_labels = []
+    y_ranges = []
+    for i in range(len(server.boards)):
+        y_labels.extend([f'accel. x\nboard {i}', f'accel. y\nboard {i}',
+                         f'accel. z\nboard {i}', f'accel. magnitude\nboard {i}'])
+        y_ranges.extend([(-12, 12), (-12, 12), (-12, 12), (0, 12)])  # x, y, z, magnitude
+        for _ in range(4):
+            x_vecs.append(np.zeros(max_period))
+            y_vecs.append(np.zeros(max_period))
     lines = []
     update_period = 0.1
 
     while True:
         for i, board_ip in enumerate(server.boards):
             if len(server.boards[board_ip]["stream_data"]) > 0:
-                x, y = server.boards[board_ip]["stream_data"].popleft()
-                x_vecs[i] = np.append(x_vecs[i][1:], x)
-                y_vecs[i] = np.append(y_vecs[i][1:], y)
-            else:
-                x_vecs[i] = np.append(x_vecs[i][1:], 0)
-                y_vecs[i] = np.append(y_vecs[i][1:], 0)
+                # idx, x, y, z, magnitude = server.boards[board_ip]["stream_data"].popleft()    # FIFO board reading
+                idx, x, y, z, magnitude = server.boards[board_ip]["stream_data"].pop()  # LIFO board reading
+                x = x / 1000
+                y = y / 1000
+                z = z / 1000
+                magnitude = magnitude / 1000
+                x_vecs[4 * i] = np.append(x_vecs[4 * i][1:], idx)
+                x_vecs[4 * i + 1] = np.append(x_vecs[4 * i + 1][1:], idx)
+                x_vecs[4 * i + 2] = np.append(x_vecs[4 * i + 2][1:], idx)
+                x_vecs[4 * i + 3] = np.append(x_vecs[4 * i + 3][1:], idx)
 
-        lines = live_plotter_xy(x_vecs, y_vecs, lines, len(server.boards), x_label='x',
-                                y_label='sine(x)',
-                                title='What a Referee Might be Seeing',
-                                pause_time=update_period)
+                y_vecs[4 * i] = np.append(y_vecs[4 * i][1:], x)
+                y_vecs[4 * i + 1] = np.append(y_vecs[4 * i + 1][1:], y)
+                y_vecs[4 * i + 2] = np.append(y_vecs[4 * i + 2][1:], z)
+                y_vecs[4 * i + 3] = np.append(y_vecs[4 * i + 3][1:], magnitude)
+            else:
+                x_vecs[4 * i] = np.append(x_vecs[4 * i][1:], 0)
+                x_vecs[4 * i + 1] = np.append(x_vecs[4 * i + 1][1:], 0)
+                x_vecs[4 * i + 2] = np.append(x_vecs[4 * i + 2][1:], 0)
+                x_vecs[4 * i + 3] = np.append(x_vecs[4 * i + 3][1:], 0)
+
+                y_vecs[4 * i] = np.append(y_vecs[4 * i][1:], 0)
+                y_vecs[4 * i + 1] = np.append(y_vecs[4 * i + 1][1:], 0)
+                y_vecs[4 * i + 2] = np.append(y_vecs[4 * i + 2][1:], 0)
+                y_vecs[4 * i + 3] = np.append(y_vecs[4 * i + 3][1:], 0)
+
+        lines = live_plotter_xy(x_vecs, y_vecs, lines, 4 * len(server.boards), x_label='board time (i)',
+                                y_labels=y_labels,
+                                title='Board Accelerometer G-Forces vs. Board Time',
+                                pause_time=update_period,
+                                dynamic_y=False,
+                                y_ranges=y_ranges)
 
 
 if __name__ == "__main__":

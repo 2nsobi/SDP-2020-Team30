@@ -31,14 +31,14 @@ def live_plotter(x_vec, y1_data, line1, identifier='', pause_time=0.1):
 
 
 # the function below is for updating both x and y values (great for updating dates on the x-axis)
-def live_plotter_xy(x_vecs, y_vecs, lines, line_count, x_label='test x', y_label='test y', title='test title',
-                    pause_time=0.01):
+def live_plotter_xy(x_vecs, y_vecs, lines, line_count, x_label='test x', y_labels=None, title='test title',
+                    pause_time=0.01, dynamic_y=True, y_ranges=None):
     if lines == []:
         plt.ion()
-        fig, axs = plt.subplots(line_count, sharex=True, sharey=True, figsize=(13, 6))
+        fig, axs = plt.subplots(line_count, sharex=True, sharey=False, figsize=(13, 6))
 
         fig.text(0.5, 0.04, x_label, ha='center', fontsize='x-large')
-        fig.text(0.04, 0.5, y_label, va='center', rotation='vertical', fontsize='x-large')
+        # fig.text(0.04, 0.5, y_label, va='center', rotation='vertical', fontsize='x-large')
 
         for i in range(line_count):
             if line_count > 1:
@@ -46,17 +46,27 @@ def live_plotter_xy(x_vecs, y_vecs, lines, line_count, x_label='test x', y_label
             else:
                 line, = axs.plot(x_vecs[i], y_vecs[i], 'r-o', alpha=0.8)
 
+            if y_labels is not None:
+                line.axes.set_ylabel(y_labels[i])
+            else:
+                line.axes.set_ylabel('test y')
+
+            if not dynamic_y:
+                line.axes.set_ylim(y_ranges[i][0], y_ranges[i][1])
+
             lines.append(line)
 
         fig.suptitle(title, fontsize='xx-large', fontweight='bold')
         plt.show()
 
+
     for i in range(line_count):
         lines[i].set_data(x_vecs[i], y_vecs[i])
         lines[i].axes.set_xlim(np.min(x_vecs[i]), np.max(x_vecs[i]))
 
-        if np.min(y_vecs[i]) <= lines[i].axes.get_ylim()[0] or np.max(y_vecs[i]) >= lines[i].axes.get_ylim()[1]:
-            plt.ylim([np.min(y_vecs[i]) - np.std(y_vecs[i]), np.max(y_vecs[i]) + np.std(y_vecs[i])])
+        if dynamic_y:
+            # if np.min(y_vecs[i]) <= lines[i].axes.get_ylim()[0] or np.max(y_vecs[i]) >= lines[i].axes.get_ylim()[1]:
+            lines[i].axes.set_ylim([np.min(y_vecs[i]) - np.std(y_vecs[i]), np.max(y_vecs[i]) + np.std(y_vecs[i])])
 
     plt.pause(pause_time)
 

@@ -15,4 +15,5 @@
 	<templateProperties value="id=i2cbma222e_CC3220SF_LAUNCHXL_tirtos_ccs.projectspec.i2cbma222e_CC3220SF_LAUNCHXL_tirtos_ccs,buildProfile=release,isHybrid=true"/>
 	<origin value="C:\ti\sail_1_50_00_00__all\sail_1_50_00_00\examples\rtos\CC3220SF_LAUNCHXL\sail\i2cbma222e\tirtos\ccs\i2cbma222e_CC3220SF_LAUNCHXL_tirtos_ccs.projectspec"/>
 	<filesToOpen value=""/>
+	<isTargetManual value="false"/>
 </projectOptions>

@@ -30,6 +30,9 @@
 #define ENTRY_PORT                  10000
 #define BILLION                     1000000000
 
+/* for on-board accelerometer */
+#include <ti/sail/bma2x2/bma2x2.h>
+
 typedef union
 {
     SlSockAddrIn6_t in6;       /* Socket info for Ipv6 */
@@ -150,24 +153,24 @@ int32_t connectToAP()
 }
 
 
-void handle_wifi_disconnection(uint32_t status)
-{
-    long lRetVal = -1;
-    lRetVal = sl_WlanDisconnect();
-    if(0 == lRetVal)
-    {
-        // Wait Till gets disconnected successfully..
-        while(IS_CONNECTED(status))
-        {
-            Message("checking connection\n\r");
-#if ENABLE_WIFI_DEBUG
-            Message("looping at handle-disconn..\n\r");
-#endif
-            sleep(1);
-        }
-        Message("Stuck Debug :- Disconnection handled properly \n\r");
-    }
-}
+//void handle_wifi_disconnection(uint32_t status)
+//{
+//    long lRetVal = -1;
+//    lRetVal = sl_WlanDisconnect();
+//    if(0 == lRetVal)
+//    {
+//        // Wait Till gets disconnected successfully..
+//        while(IS_CONNECTED(status))
+//        {
+//            Message("checking connection\n\r");
+//#if ENABLE_WIFI_DEBUG
+//            Message("looping at handle-disconn..\n\r");
+//#endif
+//            sleep(1);
+//        }
+//        Message("Stuck Debug :- Disconnection handled properly \n\r");
+//    }
+//}
 
 
 uint16_t get_port_for_data_tx()
@@ -388,8 +391,13 @@ int32_t transmit_data_forever_test(uint16_t sockPort)
     uint8_t notBlocking = 0;
 
     uint32_t sent_bytes = 0;
-    uint32_t buflen = 25;
+    uint32_t buflen = 60;
     uint8_t custom_msg[buflen];
+
+    /* for on-board accelerometer */
+    /* structure to read the accelerometer data*/
+    /* the resolution is in 8 bit*/
+    struct bma2x2_accel_data_temp sample_xyzt;
 
     UART_PRINT("\n\rsockPort: %x\n\r",sockPort);
 
@@ -471,8 +479,16 @@ int32_t transmit_data_forever_test(uint16_t sockPort)
 
     while(1)
     {
+        /*reads the accelerometer data in 8 bit resolution*/
+        /*There are different API for reading out the accelerometer data in
+         * 10,14,12 bit resolution*/
+        if(BMA2x2_INIT_VALUE != bma2x2_read_accel_xyzt(&sample_xyzt))
+        {
+            UART_PRINT("Error reading from the accelerometer\n");
+        }
+
         memset(custom_msg,0,strlen(custom_msg));
-        sprintf(custom_msg,"%i,%.10f", i, sin((double)(i/40.0)));
+        sprintf(custom_msg,"%i,%.10d,%.10d,%.10d", i, sample_xyzt.x, sample_xyzt.y, sample_xyzt.z);
 
         /* Send packets to the server */
         status = sl_Send(sock, &custom_msg, buflen, 0);

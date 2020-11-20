@@ -1,45 +1,13 @@
-/*
- * Copyright (c) 2018-2019, Texas Instruments Incorporated
- * All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- *
- * *  Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- *
- * *  Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in the
- *    documentation and/or other materials provided with the distribution.
- *
- * *  Neither the name of Texas Instruments Incorporated nor the names of
- *    its contributors may be used to endorse or promote products derived
- *    from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
- * AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO,
- * THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
- * PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR
- * CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
- * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
- * PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS;
- * OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY,
- * WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR
- * OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
- * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
- */
-// @cliArgs --board /ti/boards/CC3220SF_LAUNCHXL
-
-/*
- *  common.syscfg
+/**
+ * These arguments were used when this file was generated. They will be automatically applied on subsequent loads
+ * via the GUI or CLI. Run CLI with '--help' for additional information on how to override these arguments.
+ * @cliArgs --board "/ti/boards/CC3220SF_LAUNCHXL" --product "simplelink_cc32xx_sdk@4.30.00.06"
+ * @versions {"data":"2020090214","timestamp":"2020090214","tool":"1.6.0+1543","templates":"2020090214"}
  */
 
-/* ======== RTOS ======== */
-var RTOS = scripting.addModule("/ti/drivers/RTOS");
-RTOS.name = "TI-RTOS";
-
-
+/**
+ * Import the modules used in this configuration.
+ */
 const DriverLib      = scripting.addModule("/ti/devices/DriverLib");
 const Display        = scripting.addModule("/ti/display/Display");
 const Display1       = Display.addInstance();
@@ -53,9 +21,10 @@ const GPIO2          = GPIO.addInstance();
 const GPIO3          = GPIO.addInstance();
 const GPIO4          = GPIO.addInstance();
 const GPIO5          = GPIO.addInstance();
-const GPIO6          = GPIO.addInstance();
-const GPIO7          = GPIO.addInstance();
+const I2C            = scripting.addModule("/ti/drivers/I2C", {}, false);
+const I2C1           = I2C.addInstance();
 const Power          = scripting.addModule("/ti/drivers/Power");
+const RTOS           = scripting.addModule("/ti/drivers/RTOS");
 const SPI            = scripting.addModule("/ti/drivers/SPI");
 const SPI1           = SPI.addInstance();
 const Timer          = scripting.addModule("/ti/drivers/Timer");
@@ -101,28 +70,25 @@ GPIO2.$hardware       = system.deviceData.board.components.SW3;
 GPIO2.$name           = "CONFIG_GPIO_BUTTON_1";
 GPIO2.gpioPin.$assign = "boosterpack.11";
 
-GPIO3.$hardware      = system.deviceData.board.components.LED0;
+GPIO3.$hardware      = system.deviceData.board.components.LED_RED;
 GPIO3.outputStrength = "High";
 GPIO3.$name          = "CONFIG_GPIO_LED_0";
 
-GPIO4.$hardware      = system.deviceData.board.components.LED2;
-GPIO4.outputStrength = "High";
-GPIO4.$name          = "CONFIG_GPIO_LED_1";
+GPIO4.$name           = "CONFIG_GPIO_0";
+GPIO4.mode            = "Dynamic";
+GPIO4.gpioPin.$assign = "boosterpack.19";
 
-GPIO5.$hardware      = system.deviceData.board.components.LED1;
-GPIO5.outputStrength = "High";
-GPIO5.$name          = "CONFIG_GPIO_LED_2";
+GPIO5.$name           = "CONFIG_GPIO_2";
+GPIO5.mode            = "Dynamic";
+GPIO5.gpioPin.$assign = "boosterpack.4";
 
-GPIO6.$name           = "CONFIG_GPIO_0";
-GPIO6.mode            = "Dynamic";
-GPIO6.gpioPin.$assign = "boosterpack.19";
+I2C1.$name              = "CONFIG_I2C_BMA222E";
+I2C1.$hardware          = system.deviceData.board.components.LP_I2C;
+I2C1.i2c.$assign        = "I2C0";
+I2C1.i2c.sdaPin.$assign = "boosterpack.10";
+I2C1.i2c.sclPin.$assign = "boosterpack.9";
 
-GPIO7.$name           = "CONFIG_GPIO_2";
-GPIO7.mode            = "Dynamic";
-GPIO7.gpioPin.$assign = "boosterpack.4";
-
-Power.ioRetentionShutdown = ["GRP_1"];
-Power.parkPins.$name      = "ti_drivers_power_PowerCC32XXPins0";
+Power.parkPins.$name = "ti_drivers_power_PowerCC32XXPins0";
 
 SPI1.$name                    = "CONFIG_SPI_0";
 SPI1.mode                     = "Four Pin SS Active Low";
@@ -165,5 +131,3 @@ SlNet1.ifName = "CC32xx";
  * re-solve from scratch.
  */
 GPIO3.gpioPin.$suggestSolution = "boosterpack.29";
-GPIO4.gpioPin.$suggestSolution = "boosterpack.9";
-GPIO5.gpioPin.$suggestSolution = "boosterpack.10";

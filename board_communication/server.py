@@ -5,6 +5,7 @@ import time
 from util.pylive import live_plotter_xy
 import numpy as np
 from collections import deque
+import math
 
 # make sure this matches the ENTRY_PORT global macro in the cc3220sf ap_connection.c code as well
 ENTRY_PORT = 10000
@@ -106,7 +107,7 @@ class Server:
         #                           args=(socket_this_side, self.boards[ipv4],
         #                                 self.start_flag, self.end_flag, self.exit_flag))
 
-        thread = threading.Thread(target=wait_and_plot_incoming_data,
+        thread = threading.Thread(target=wait_and_plot_incoming_accel_data,
                                   args=(socket_this_side, self.boards[ipv4],
                                         self.exit_flag))
         thread.start()
@@ -192,18 +193,22 @@ def wait_to_send_msgs(sock, coms_dict, start_flag, end_flag, exit_flag):
     return 0
 
 
-def wait_and_plot_incoming_data(sock, coms_dict, exit_flag):
+def wait_and_plot_incoming_accel_data(sock, coms_dict, exit_flag):
     max_buffer_size = 600000
     while not exit_flag.is_set():
         # Wait for a connection
         connection, client_address = sock.accept()
-
         try:
             while not exit_flag.is_set():
-                data = connection.recv(25)
+                data = connection.recv(60)
                 if data:
-                    x, y = util.strip_end_bytes(data).split(',')
-                    coms_dict['stream_data'].append((int(x), float(y)))
+                    i, x, y, z = util.strip_end_bytes(data).split(',')
+                    i = int(i)
+                    x = float(x)
+                    y = float(y)
+                    z = float(z)
+                    magnitude = math.sqrt(x ** 2 + y ** 2 + z ** 2)
+                    coms_dict['stream_data'].append((i, x, y, z, magnitude))
                     if len(coms_dict['stream_data']) >= max_buffer_size:
                         coms_dict['stream_data'].popleft()
         finally:

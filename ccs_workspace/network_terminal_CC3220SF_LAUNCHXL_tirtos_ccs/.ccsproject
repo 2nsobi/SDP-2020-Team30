@@ -15,4 +15,5 @@
 	<templateProperties value="id=network_terminal_CC3220SF_LAUNCHXL_tirtos_ccs.projectspec.network_terminal_CC3220SF_LAUNCHXL_tirtos_ccs,buildProfile=release,isHybrid=true"/>
 	<origin value="C:\ti\simplelink_cc32xx_sdk_4_30_00_06\examples\rtos\CC3220SF_LAUNCHXL\demos\network_terminal\tirtos\ccs\network_terminal_CC3220SF_LAUNCHXL_tirtos_ccs.projectspec"/>
 	<filesToOpen value=""/>
+	<isTargetManual value="false"/>
 </projectOptions>

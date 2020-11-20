@@ -71,6 +71,10 @@
 /* Application defines */
 #define SIX_BYTES_SIZE_MAC_ADDRESS  (17)
 
+/* for on-board accelerometer */
+#include <ti/drivers/I2C.h>
+#include <ti/sail/bma2x2/bma2x2.h>
+
 /****************************************************************************
                       LOCAL FUNCTION PROTOTYPES
 ****************************************************************************/
@@ -1798,10 +1802,17 @@ void * mainThread(void *arg)
     struct sched_param  priParam;
     struct timespec     ts = {0};
 
+    /* for on-board accelerometer */
+    I2C_Handle      i2c;
+    I2C_Params      i2cParams;
+
     /* Initializes the SPI interface to the Network
        Processor and peripheral SPI (if defined in the board file) */
     SPI_init();
     GPIO_init();
+
+    /* for on-board accelerometer */
+    I2C_init();
 
     /* Init Application variables */
     RetVal = initAppVariables();
@@ -1814,8 +1825,10 @@ void * mainThread(void *arg)
 
     /* Switch off all LEDs on boards */
     GPIO_write(CONFIG_GPIO_LED_0, CONFIG_GPIO_LED_OFF);
-    GPIO_write(CONFIG_GPIO_LED_1, CONFIG_GPIO_LED_OFF);
-    GPIO_write(CONFIG_GPIO_LED_2, CONFIG_GPIO_LED_OFF);
+    //nnaji edit start
+//    GPIO_write(CONFIG_GPIO_LED_1, CONFIG_GPIO_LED_OFF);
+//    GPIO_write(CONFIG_GPIO_LED_2, CONFIG_GPIO_LED_OFF);
+    //nnaji edit done
 
     /* Create the sl_Task internal spawn thread */
     pthread_attr_init(&pAttrs_spawn);
@@ -1894,12 +1907,38 @@ void * mainThread(void *arg)
 //    UART_PRINT("[nnaji time] time since clock initialization: sec=%u, nsec=%u\n\r",ts2.tv_sec,ts2.tv_nsec);
 //    //////////////////
 
+    /* for on-board accelerometer */
+    I2C_Params_init(&i2cParams);
+    i2cParams.bitRate = I2C_400kHz;
+    i2cParams.transferMode = I2C_MODE_BLOCKING;
+    i2cParams.transferCallbackFxn = NULL;
+    i2c = I2C_open(CONFIG_I2C_BMA222E, &i2cParams);
+    if (i2c == NULL)
+    {
+        UART_PRINT("Error Initializing I2C\n");
+    }
+    else
+    {
+        UART_PRINT("I2C Initialized!\n");
+    }
+    /* This is actually a data readout template function provided by the bosch
+     * opensource support file(we are using this as is). Modification has been
+     * done to the API signature the i2c handle as the parameter,  also the API
+     * has been modified and the setting the device to power down mode after
+     * the data readout is removed (we are using this as initiailization
+     * function) This API does the initialization job for us hence we are using
+     * it without any modificaitons. User should be able to modify the
+     * bma2x2_support.c file as per his need. */
+    if(BMA2x2_INIT_VALUE != bma2x2_data_readout_template(i2c))
+    {
+        UART_PRINT("Error Initializing bma222e\n");
+    }
+
     /* connect to AP defined in ap_connection.c */
     connectToAP();
 
     /* get socket port to use for transmitting data to AP */
     uint16_t portForTX = get_port_for_data_tx();
-    UART_PRINT("[nnaji] port received in hex again: \"%x\"\n\r",portForTX);
 
     /* test transmitting packets continuously to AP */
     transmit_data_forever_test(portForTX);
