@@ -52,6 +52,11 @@
 /* ADC sample count */
 #define ADC_SAMPLE_COUNT  (6000)
 
+//these two have to be the same
+// this is 2^28
+#define TIMER_PERIOD (268435456)
+float timer_period = 268435456;
+
 /* ADC conversion result variables */
 uint16_t adcValue0[ADC_SAMPLE_COUNT];
 uint16_t adcValue1[ADC_SAMPLE_COUNT];
@@ -114,8 +119,8 @@ void Timer_setup_continuous(Timer_Handle *handle){
     Timer_init();
     Timer_Params timer_params;
     Timer_Params_init(&timer_params);
-    timer_params.periodUnits = Timer_PERIOD_US;
-    timer_params.period = 10000000;
+    timer_params.periodUnits = Timer_PERIOD_COUNTS;
+    timer_params.period = TIMER_PERIOD;
     timer_params.timerMode  = Timer_FREE_RUNNING;
     *handle = Timer_open(CONFIG_TIMER_0, &timer_params);
     if(*handle == NULL){
@@ -385,10 +390,11 @@ void print_accel_forever_timer(ADC_Handle *adc0, ADC_Handle *adc1, ADC_Handle *a
     unsigned long timer_value_now = 0;
     int timer_clock_before = 0;
     int timer_clock_now = 0;
+    float timestamp = 0;
     i = 0;
 
     if(csv){
-        Display_printf(display, 0, 0, "Sample, acceleration, ADC_0, ADC_1, ADC_2, Interval");
+        Display_printf(display, 0, 0, "Sample,ADC_0,ADC_1,ADC_2,Timestamp,Acceleration");
     }
 
     while(1) {
@@ -403,7 +409,14 @@ void print_accel_forever_timer(ADC_Handle *adc0, ADC_Handle *adc1, ADC_Handle *a
         timer_clock_now = Timer_getCount(*timer_handle);
         // Gets the time between 2 system clock readings <now> and <before>
         // based on the 80Mhz system clock, 1 tick = 0.0000125 milliseconds
-        ms_interval = (float)(0.0000125)*(timer_clock_now - timer_clock_before);
+        if (timer_clock_before < timer_clock_now){
+            ms_interval = (float)(0.0000125)*(timer_clock_now - timer_clock_before);
+            timestamp += ms_interval;
+        }
+        else {
+            ms_interval = (float)(0.0000125)*(timer_period + timer_clock_now - timer_clock_before);
+            timestamp += ms_interval;
+        }
 
         //make sure readings were successful
         if (res0 == ADC_STATUS_SUCCESS) {
@@ -424,10 +437,10 @@ void print_accel_forever_timer(ADC_Handle *adc0, ADC_Handle *adc1, ADC_Handle *a
         else {
             Display_printf(display, 0, 0, "CONFIG_ADC_2 convert failed (%d)\n", i);
         }
-        acceleration = sqrt(pow(adc0mv, 2) + pow(adc1mv, 2) + pow(adc2mv, 2));
+        acceleration = sqrt(pow(adc0mv, 2) + pow(adc1mv, 2) + pow(adc2mv, 2))/1040;
         if(csv){
-            Display_printf(display, 0, 0, "%d, %f, %f, %f, %f, %f",
-                                           i, acceleration, adc0mv, adc1mv, adc2mv, ms_interval);
+            Display_printf(display, 0, 0, "%d,%f,%f,%f,%f,%f",
+                                           i, adc0mv, adc1mv, adc2mv, timestamp, acceleration);
         }
         else{
             Display_printf(display, 0, 0, "Sample: %d, accel: %f, ADC_0: %fmv, ADC_1: %fmv, ADC_2: %fmv, Interval: %fms",
