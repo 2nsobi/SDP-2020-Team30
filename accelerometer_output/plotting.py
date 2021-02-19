@@ -78,15 +78,21 @@ def get_accel_timestamp_value(sample):
     return float(sample[-1]), float(sample[-2])
 
 
+def get_all_accel_values(sample):
+    #returns (accel, timestamp)
+    sample = sample.split(",")
+    return float(sample[-5]), float(sample[-4]), float(sample[-3]), float(sample[-1]), float(sample[-2])
+
+
 def setup_serial():
     com5 = serial.Serial()
-    com5.port = 'COM5'
+    com5.port = 'COM6'
     com5.baudrate = 115200
     com5.open()
     return com5
 
 
-def plot_acceleration_from_board(serial_port = None, num_samples = 2000):
+def plot_acceleration_from_board(serial_port = None, num_samples = 1000):
     if serial_port is None:
         serial_port = setup_serial()
 
@@ -109,4 +115,35 @@ def plot_acceleration_from_board(serial_port = None, num_samples = 2000):
     plt.legend()
     plt.show()
 
-plot_acceleration_from_board()
+def plot_acceleration_xyx_from_board(serial_port = None, num_samples = 2000):
+    if serial_port is None:
+        serial_port = setup_serial()
+
+    accel_values = []
+    timestamp_values = []
+    x_values = []
+    y_values = []
+    z_values = []
+    for i in range(num_samples):
+        try:
+            sample = read_one_sample_from_board(serial_port)
+            x, y, z, accel, timestamp = get_all_accel_values(sample)
+            accel_values.append(accel)
+            timestamp_values.append(timestamp)
+            x_values.append(x)
+            y_values.append(y)
+            z_values.append(z)
+            if (i != 0):
+                timestamp_values[i] -= timestamp_values[0]
+        except:
+            pass
+
+    fig, axs = plt.subplots(3, sharex=True, sharey=True)
+    fig.suptitle("X, Y, and Z acceleration")
+    axs[0].plot(timestamp_values, x_values)
+    axs[1].plot(timestamp_values, y_values)
+    axs[2].plot(timestamp_values, z_values)
+    plt.show()
+
+#plot_acceleration_from_board()
+plot_acceleration_xyx_from_board()

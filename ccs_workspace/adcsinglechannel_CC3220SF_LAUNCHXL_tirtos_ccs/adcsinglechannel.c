@@ -238,7 +238,7 @@ void store_one_accel_sample(ADC_Handle *adc0, ADC_Handle *adc1, ADC_Handle *adc2
     count++;
     if(count > ADC_SAMPLE_COUNT){
         print_data();
-        exit();
+        exit(0);
     }
 }
 
@@ -450,6 +450,186 @@ void print_accel_forever_timer(ADC_Handle *adc0, ADC_Handle *adc1, ADC_Handle *a
 }
 
 
+
+void print_accel_forever_timer_detection(ADC_Handle *adc0, ADC_Handle *adc1, ADC_Handle *adc2, Timer_Handle *timer_handle){
+    // prints accelerometer readings forever according to a continuous timer,
+    // and waits 1 second between readings if the first line of the while loop is not commented out
+
+    int i, res0, res1, res2;
+    uint16_t adcraw0, adcraw1, adcraw2;
+    float adc0mv, adc1mv, adc2mv;
+    float ms_interval, new_accel;
+    unsigned long timer_value_now = 0;
+    int timer_clock_before = 0;
+    int timer_clock_now = 0;
+    float timestamp = 0;
+    i = 0;
+    float alpha = 0.125;
+    float threshold = 0.15;
+    float beta = 0.25;
+    float mov_avg = 1;
+    float dev_accel = 0;
+
+
+    /*
+     * Global variables:
+    float adcValue0MicroVolt[ADC_SAMPLE_COUNT];
+    float adcValue1MicroVolt[ADC_SAMPLE_COUNT];
+    float adcValue2MicroVolt[ADC_SAMPLE_COUNT];
+    float accel[ADC_SAMPLE_COUNT];
+    float interval[ADC_SAMPLE_COUNT];
+    long difference[ADC_SAMPLE_COUNT];
+     *
+     */
+
+
+    while(1) {
+        //sleep(1);
+        if(i > ADC_SAMPLE_COUNT){i = 0;}
+        else{i++;}
+
+        //Get accel readings
+        res0 = ADC_convert(*adc0, &adcraw0, &timer_value_now);
+        res1 = ADC_convert(*adc1, &adcraw1, &timer_value_now);
+        res2 = ADC_convert(*adc2, &adcraw2, &timer_value_now);
+
+        timer_clock_before = timer_clock_now;
+        timer_clock_now = Timer_getCount(*timer_handle);
+        // Gets the time between 2 system clock readings <now> and <before>
+        // based on the 80Mhz system clock, 1 tick = 0.0000125 milliseconds
+        if (timer_clock_before < timer_clock_now){
+            ms_interval = (float)(0.0000125)*(timer_clock_now - timer_clock_before);
+            timestamp += ms_interval;
+        }
+        else {
+            ms_interval = (float)(0.0000125)*(timer_period + timer_clock_now - timer_clock_before);
+            timestamp += ms_interval;
+        }
+
+        //make sure readings were successful
+        if (res0 == ADC_STATUS_SUCCESS) {
+            adc0mv = (float)adcraw0/1.14;
+        }
+        else {
+            Display_printf(display, 0, 0, "CONFIG_ADC_0 convert failed (%d)\n", i);
+        }
+        if (res1 == ADC_STATUS_SUCCESS) {
+            adc1mv = (float)adcraw1/1.15;
+        }
+        else {
+            Display_printf(display, 0, 0, "CONFIG_ADC_1 convert failed (%d)\n", i);
+        }
+        if (res2 == ADC_STATUS_SUCCESS) {
+            adc2mv = (float)adcraw2/1.14;
+        }
+        else {
+            Display_printf(display, 0, 0, "CONFIG_ADC_2 convert failed (%d)\n", i);
+        }
+
+        new_accel = sqrt(pow(adc0mv, 2) + pow(adc1mv, 2) + pow(adc2mv, 2))/1040;
+        accel[i] = new_accel;
+        interval[i] = ms_interval;
+
+        mov_avg = (1 - alpha) * (mov_avg) + alpha * (new_accel);
+        dev_accel = (1 - beta) * (dev_accel) + beta * (fabs(new_accel - mov_avg));
+
+        Display_printf(display, 0, 0, "Sample: %d, accel: %f, moving avg: %f, dev_accel: %f, Interval: %fms",
+                                                   i, new_accel, mov_avg, dev_accel, ms_interval);
+
+        if(dev_accel > threshold){
+            Display_printf(display, 0, 0, "Detected event");
+            send_data(i, &adc0, &adc1, &adc2, &timer_handle);
+            Display_printf(display, 0, 0, "Detected event");
+        }
+    }
+}
+
+
+
+void send_data(int i, ADC_Handle *adc0, ADC_Handle *adc1, ADC_Handle *adc2, Timer_Handle *timer_handle){
+
+    int res0, res1, res2;
+    uint16_t adcraw0, adcraw1, adcraw2;
+    float adc0mv, adc1mv, adc2mv;
+    float ms_interval, sample_accel;
+    unsigned long timer_value_now = 0;
+    int timer_clock_before = 0;
+    int timer_clock_now = 0;
+    float timestamp = 0;
+
+    int start = i;
+    int j;
+    // read 100 more samples
+    for(j=0; j<100; j++){
+        if(i > ADC_SAMPLE_COUNT){i = 0;}
+        else{i++;}
+
+        //Get accel readings
+        res0 = ADC_convert(*adc0, &adcraw0, &timer_value_now);
+        res1 = ADC_convert(*adc1, &adcraw1, &timer_value_now);
+        res2 = ADC_convert(*adc2, &adcraw2, &timer_value_now);
+
+        timer_clock_before = timer_clock_now;
+        timer_clock_now = Timer_getCount(*timer_handle);
+        // Gets the time between 2 system clock readings <now> and <before>
+        // based on the 80Mhz system clock, 1 tick = 0.0000125 milliseconds
+        if (timer_clock_before < timer_clock_now){
+            ms_interval = (float)(0.0000125)*(timer_clock_now - timer_clock_before);
+            timestamp += ms_interval;
+        }
+        else {
+            ms_interval = (float)(0.0000125)*(timer_period + timer_clock_now - timer_clock_before);
+            timestamp += ms_interval;
+        }
+
+        //make sure readings were successful
+        if (res0 == ADC_STATUS_SUCCESS) {
+            adc0mv = (float)adcraw0/1.14;
+        }
+        else {
+            Display_printf(display, 0, 0, "CONFIG_ADC_0 convert failed (%d)\n", i);
+        }
+        if (res1 == ADC_STATUS_SUCCESS) {
+            adc1mv = (float)adcraw1/1.15;
+        }
+        else {
+            Display_printf(display, 0, 0, "CONFIG_ADC_1 convert failed (%d)\n", i);
+        }
+        if (res2 == ADC_STATUS_SUCCESS) {
+            adc2mv = (float)adcraw2/1.14;
+        }
+        else {
+            Display_printf(display, 0, 0, "CONFIG_ADC_2 convert failed (%d)\n", i);
+        }
+
+        sample_accel = sqrt(pow(adc0mv, 2) + pow(adc1mv, 2) + pow(adc2mv, 2))/1040;
+        accel[i] = sample_accel;
+        interval[i] = ms_interval;
+    }
+
+    // reconstruct array
+    float new_accel[ADC_SAMPLE_COUNT];
+    float new_interval[ADC_SAMPLE_COUNT];
+    int count = 0;
+
+    for(j = start; j < ADC_SAMPLE_COUNT; j++){
+        new_accel[count] = accel[j];
+        new_interval[count] = interval[j];
+        count ++;
+    }
+    for(j = 0; j < start; j++){
+        new_accel[count] = accel[j];
+        new_interval[count] = interval[j];
+        count++;
+    }
+
+    for(j=0; j<ADC_SAMPLE_COUNT; j++){
+        Display_printf(display, 0, 0, "%d,%f,%f", j, new_accel[j], new_interval[j]);
+    }
+
+}
+
+
 /*
  *  ======== mainThread ========
  */
@@ -470,7 +650,8 @@ void *mainThread(void *arg0)
     //print_N_accel_samples_timer(&adc0, &adc1, &adc2, &timer_handle);
     //float seconds = 1;
     //print_accel_samples_seconds(&adc0, &adc1, &adc2, &timer_handle, seconds);
-    print_accel_forever_timer(&adc0, &adc1, &adc2, &timer_handle, csv);
+    //print_accel_forever_timer(&adc0, &adc1, &adc2, &timer_handle, csv);
+    print_accel_forever_timer_detection(&adc0, &adc1, &adc2, &timer_handle);
 
 
     ADC_close(adc0);
