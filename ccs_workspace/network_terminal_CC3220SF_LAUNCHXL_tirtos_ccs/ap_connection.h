@@ -29,4 +29,8 @@ int32_t transmit_data_forever_test(uint16_t sockPort);
 
 int32_t time_drift_test(uint16_t sockPort);
 
+int32_t time_drift_test_l3(uint16_t sockPort);
+
+int32_t time_drift_test_l2();
+
 #endif /* AP_CONNECTION_H_ */

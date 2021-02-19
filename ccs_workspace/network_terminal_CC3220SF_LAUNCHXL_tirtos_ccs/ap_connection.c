@@ -14,6 +14,7 @@
 #include "network_terminal.h"
 #include "cmd_parser.h"
 //#include "socket_cmd.h"
+#include "radio_tool.h"
 
 /* custom header files */
 #include "ap_connection.h"
@@ -29,6 +30,7 @@
 #define AP_KEY                      "12345678"
 #define ENTRY_PORT                  10000
 #define BILLION                     1000000000
+#define MESSAGE_SIZE                50
 
 /* for on-board accelerometer */
 #include <ti/sail/bma2x2/bma2x2.h>
@@ -178,14 +180,12 @@ uint16_t get_port_for_data_tx()
     int32_t sock;
     int32_t status;
     uint32_t i = 0;
-    int32_t nonBlocking;
     SlSockAddr_t        *sa;
     int32_t addrSize;
     sockAddr_t sAddr;
     uint16_t portNumber = ENTRY_PORT;
     uint8_t notBlocking = 0;
 
-    int32_t buflen;
     uint32_t sent_bytes = 0;
     uint8_t custom_msg[25];
     sprintf(custom_msg,"cc3220sf ipv4:%u",app_CB.CON_CB.IpAddr);
@@ -298,15 +298,6 @@ uint16_t get_port_for_data_tx()
 
     while(sent_bytes < bytes_to_send)
     {
-        if(bytes_to_send - sent_bytes >= BUF_LEN)
-        {
-            buflen = BUF_LEN;
-        }
-        else
-        {
-            buflen = bytes_to_send - sent_bytes;
-        }
-
         /* Send packets to the server */
         status = sl_Send(sock, &custom_msg, msg_size, 0);
 
@@ -370,7 +361,7 @@ uint16_t get_port_for_data_tx()
     UART_PRINT("[nnaji] msg recieved: \"%s\"\n\r",&rcvd_msg);
 
     receivedPort = (uint16_t)atoi((const char *)rcvd_msg);
-    UART_PRINT("[nnaji] port recieved: \"%x\"\n\r",receivedPort);
+    UART_PRINT("[nnaji] port recieved: \"%i\"\n\r",receivedPort);
 
     /* Calling 'close' with the socket descriptor,
      * once operation is finished. */
@@ -527,14 +518,13 @@ int32_t time_drift_test(uint16_t sockPort)
 {
     int32_t sock;
     int32_t status;
-    uint32_t i = 0;
     SlSockAddr_t        *sa;
     int32_t addrSize;
     sockAddr_t sAddr;
     uint8_t notBlocking = 0;
 
     /* ALWAYS DECLARE ALL VARIABLES AT TOP OF FUNCTION TO AVOID BUFFER ISSUES */
-    uint32_t buflen = 50;
+    uint32_t buflen = MESSAGE_SIZE;
     struct timespec last_time;
     struct timespec cur_time;
     uint8_t rcv_msg_buff[buflen];
@@ -614,8 +604,6 @@ int32_t time_drift_test(uint16_t sockPort)
         break;
     }
 
-    i = 0;
-
     //////////////////////////////////////////////////////
     // wait to receive requests for system time from AP
     //////////////////////////////////////////////////////
@@ -629,7 +617,6 @@ int32_t time_drift_test(uint16_t sockPort)
     while(1)
     {
         status = sl_Recv(sock, &rcv_msg_buff, buflen, 0);
-
         if((status == SL_ERROR_BSD_EAGAIN) && (TRUE == notBlocking))
         {
             sleep(1);
@@ -711,3 +698,173 @@ int32_t time_drift_test(uint16_t sockPort)
     return(0);
 }
 
+int32_t time_drift_test_l2(){
+    /* ALWAYS DECLARE ALL VARIABLES AT TOP OF FUNCTION TO AVOID BUFFER ISSUES */
+    uint32_t buflen = MESSAGE_SIZE;
+    uint8_t rcv_msg_buff[buflen];
+    _i16 sock;
+    uint32_t channel = 11;
+    uint32_t max_packet_size = 1544;
+    _i16 channels[11] = {1,2,3,4,5,6,7,8,9,10,11};
+    _i16 cur_channel;
+    _i16 numBytes;
+    _i16 status;
+    struct SlTimeval_t timeVal;
+    uint8_t Rx_frame[max_packet_size];
+    uint32_t i;
+    uint32_t j;
+
+    timeVal.tv_sec =  2;             // Seconds
+    timeVal.tv_usec = 0;             // Microseconds. 10000 microseconds resolution
+
+    memset(rcv_msg_buff, 0, strlen(rcv_msg_buff));
+    memset(Rx_frame, 0, max_packet_size);
+
+    UART_PRINT("[nnaji msg] buflen: %i\n\r", buflen);
+
+    /* To use transceiver mode, the device must be set in STA role, be disconnected, and have disabled
+        previous connection policies that might try to automatically connect to an AP. */
+    status = sl_WlanPolicySet(SL_WLAN_POLICY_CONNECTION, SL_WLAN_CONNECTION_POLICY(0, 0, 0, 0), NULL, 0);
+    if( status )
+    {
+        UART_PRINT("[line:%d, error:%d]\n\r", __LINE__, status);
+        return(-1);
+    }
+//    status = sl_WlanDisconnect();
+//    if( status )
+//    {
+//        UART_PRINT("[line:%d, error:%d]\n\r", __LINE__, status);
+//        return(-1);
+//    }
+
+    sock = sl_Socket(SL_AF_RF, SL_SOCK_DGRAM, 1);
+    ASSERT_ON_ERROR(sock, SL_SOCKET_ERROR);
+
+    status = sl_SetSockOpt(sock, SL_SOL_SOCKET, SL_SO_RCVTIMEO, (_u8 *)&timeVal, sizeof(timeVal));    // Enable receive timeout
+    if(status < 0)
+    {
+        UART_PRINT("[line:%d, error:%d] %s\n\r", __LINE__, status,
+                   SL_SOCKET_ERROR);
+        sl_Close(sock);
+        return(-1);
+    }
+
+    while(1)
+    {
+        for(i=0;i<11;i++){
+            cur_channel = channels[i];
+            status = sl_SetSockOpt(sock, SL_SOL_SOCKET, SL_SO_CHANGE_CHANNEL, &cur_channel, sizeof(cur_channel));
+            if(status < 0)
+            {
+                UART_PRINT("[line:%d, error:%d] %s, channel: %i\n\r", __LINE__, status,
+                           SL_SOCKET_ERROR, cur_channel);
+                break;
+            }
+
+            numBytes = sl_Recv(sock, &Rx_frame, max_packet_size, 0);
+            UART_PRINT("[nnaji msg] numBytes from channel %i: %i\n\r", cur_channel, numBytes);
+            if(numBytes < 0)
+            {
+                UART_PRINT("[line:%d, error:%d] %s, channel: %i\n\r", __LINE__, numBytes,
+                           SL_SOCKET_ERROR, cur_channel);
+                break;
+            }
+
+            UART_PRINT("first 50 bytes: ");
+            for(j=0;j<50;j++){
+                UART_PRINT("%x ", Rx_frame[j]);
+            }
+            UART_PRINT("\n\r");
+
+//            memset(rcv_msg_buff,0,strlen(rcv_msg_buff));
+//            memset(Rx_frame, 0, max_packet_size);
+        }
+//        sleep(0.5f);
+    }
+
+    /* Calling 'close' with the socket descriptor,
+    * once operation is finished. */
+    status = sl_Close(sock);
+    ASSERT_ON_ERROR(status, SL_SOCKET_ERROR);
+
+    return(0);
+}
+
+int32_t time_drift_test_l3(uint16_t sockPort){
+    /* ALWAYS DECLARE ALL VARIABLES AT TOP OF FUNCTION TO AVOID BUFFER ISSUES */
+    uint32_t buflen = MESSAGE_SIZE;
+    uint8_t rcv_msg_buff[buflen];
+    _i16 sock;
+    uint32_t max_packet_size = 1544;
+    _i16 numBytes;
+    _i16 status;
+    struct SlTimeval_t timeVal;
+    uint8_t Rx_frame[max_packet_size];
+    _u16 broadcast_port = 10012;
+    SlSockAddrIn_t  sAddr;
+    _i16 AddrSize = sizeof(SlSockAddrIn_t);
+    int32_t i;
+
+    timeVal.tv_sec =  30;             // Seconds
+    timeVal.tv_usec = 0;             // Microseconds. 10000 microseconds resolution
+
+    memset(rcv_msg_buff, 0, strlen(rcv_msg_buff));
+    memset(Rx_frame, 0, max_packet_size);
+
+    UART_PRINT("[nnaji msg] sockPort (for transmitting data to AP): %i\n\r", sockPort);
+    UART_PRINT("[nnaji msg] buflen: %i\n\r", buflen);
+
+    sock = sl_Socket(SL_AF_INET, SL_SOCK_DGRAM, 0);
+    ASSERT_ON_ERROR(sock, SL_SOCKET_ERROR);
+
+//    status = sl_SetSockOpt(sock, SL_SOL_SOCKET, SL_SO_RCVTIMEO, (_u8 *)&timeVal, sizeof(timeVal));    // Enable receive timeout
+//    if(status < 0)
+//    {
+//        UART_PRINT("[line:%d, error:%d] %s\n\r", __LINE__, status,
+//                   SL_SOCKET_ERROR);
+//        sl_Close(sock);
+//        return(-1);
+//    }
+
+    sAddr.sin_family = SL_AF_INET;
+    sAddr.sin_port = sl_Htons(broadcast_port);
+    sAddr.sin_addr.s_addr = SL_INADDR_ANY;
+
+    status = sl_Bind(sock, (SlSockAddr_t *)&sAddr, AddrSize);
+    if(status < 0)
+    {
+        UART_PRINT("[line:%d, error:%d] %s\n\r", __LINE__, status,
+                   SL_SOCKET_ERROR);
+        sl_Close(sock);
+        return(-1);
+    }
+
+    while(1)
+    {
+        numBytes = sl_RecvFrom(sock, Rx_frame, max_packet_size, 0, (SlSockAddr_t *)&sAddr, (SlSocklen_t*)&AddrSize);
+        UART_PRINT("[nnaji msg] numBytes: %i\n\r", numBytes);
+        if(numBytes < 0)
+        {
+            UART_PRINT("[line:%d, error:%d] %s\n\r", __LINE__, numBytes,
+                       SL_SOCKET_ERROR);
+            break;
+        }
+
+        UART_PRINT("first 50 bytes: ");
+        for(i=0;i<50;i++){
+            UART_PRINT("%x ", Rx_frame[i]);
+        }
+        UART_PRINT("\n\r");
+
+        UART_PRINT("msg as str: %s\n\r", Rx_frame);
+
+        sleep(1);
+    }
+
+    /* Calling 'close' with the socket descriptor,
+    * once operation is finished. */
+    status = sl_Close(sock);
+    ASSERT_ON_ERROR(status, SL_SOCKET_ERROR);
+
+    return(0);
+}

@@ -1931,20 +1931,36 @@ void * mainThread(void *arg)
      * bma2x2_support.c file as per his need. */
     if(BMA2x2_INIT_VALUE != bma2x2_data_readout_template(i2c))
     {
-        UART_PRINT("Error Initializing bma222e\n");
+        UART_PRINT("Error Initializing bma222e\n\r");
     }
 
+//    /* disable previous connection policies that might try to automatically connect to an AP. */
+//    RetVal = sl_WlanPolicySet(SL_WLAN_POLICY_CONNECTION, SL_WLAN_CONNECTION_POLICY(0, 0, 0, 0), NULL, 0);
+//    if(RetVal < 0)
+//    {
+//        UART_PRINT("[line:%d, error:%d]\n\r", __LINE__, RetVal);
+//        return(-1);
+//    }
+//    RetVal = sl_WlanDisconnect();
+//    if( RetVal )
+//    {
+//        UART_PRINT("[line:%d, error:%d]\n\r", __LINE__, RetVal);
+//        return(-1);
+//    }
+
     /* connect to AP defined in ap_connection.c */
-    connectToAP();
+//    connectToAP();
 
     /* get socket port to use for transmitting data to AP */
-    uint16_t portForTX = get_port_for_data_tx();
+//    uint16_t portForTX = get_port_for_data_tx();
 
     /* test transmitting packets continuously to AP */
-    transmit_data_forever_test(portForTX);
+//    transmit_data_forever_test(portForTX);
 
     /* test time drift */
 //    time_drift_test(portForTX);
+//    time_drift_test_l3(portForTX);
+    time_drift_test_l2();
 
     /*
      * Calling UART handling method which serves as the application main loop.

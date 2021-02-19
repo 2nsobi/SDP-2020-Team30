@@ -2,28 +2,39 @@ import socket
 from util import util
 import threading
 import time
-from util.pylive import live_plotter_xy
-import numpy as np
 from collections import deque
 import math
+import struct
 
 # make sure this matches the ENTRY_PORT global macro in the cc3220sf ap_connection.c code as well
 ENTRY_PORT = 10000
 MAX_BOARDS = 2
 MAX_BIND_RETRIES = 5
+MESSAGE_SIZE = 50
 
+MULTICAST_GROUP_IP = "224.10.10.10"
+MULTICAST_GROUP_PORT = 10007
+MULTICAST_TTL = struct.pack('b', 12)
+
+# global shared vars for multi-threading communication
 str_to_send = None
-thread_tasks_done = 0
+thread_tasks_done = None
+using_udp = None
 
 
 class Server:
     def __init__(self, ipv4, board_count=MAX_BOARDS):
+        if ipv4 is None:
+            print('ipv4 can\'t be None')
         self.ipv4 = ipv4
         self.boards = {}
         self.entry_port = ENTRY_PORT
+        self.broadcast_port = MULTICAST_GROUP_PORT
         self.last_used_port = None
         self.entry_address = None
         self.entry_socket = None
+        self.broadcast_address = None
+        self.broadcast_socket = None
         self.start_flag = threading.Event()
         self.end_flag = threading.Event()
         self.exit_flag = threading.Event()
@@ -37,12 +48,19 @@ class Server:
         self.entry_socket.listen(self.board_count)  # Listen for incoming connections
         self.last_used_port = self.entry_address[1]
 
-        print(f'*** starting up server on {socket.gethostbyname(self.entry_address[0])}'
-              f' port {self.entry_address[1]} ***')
+        self.broadcast_address = (self.ipv4, self.broadcast_port)
+        self.broadcast_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)  # Create the datagram socket
+        # Set a timeout so the socket does not block indefinitely when trying to receive data
+        # self.broadcast_socket.settimeout(0.2)
+        self.broadcast_socket.settimeout(20)
+        self.broadcast_socket.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, MULTICAST_TTL)
+
+        print(f'*** server running, IP: {socket.gethostbyname(self.entry_address[0])}, entry'
+              f' port: {self.entry_address[1]} ***')
 
         return self.entry_socket
 
-    def wait_for_all_boards_to_connect(self):
+    def wait_for_all_boards_to_connect(self, task='test_time_sync'):
         while len(self.boards) != self.board_count:
             # Wait for a connection
             print('*** waiting for a connection (use ctrl-c to cancel) ***')
@@ -63,7 +81,7 @@ class Server:
 
                         # security measure, might be useful?
                         if client_address[0] == cc3220sf_ip_str:
-                            socket_address = self.add_board(ipv4=cc3220sf_ip_str)
+                            socket_address = self.add_board(ipv4=cc3220sf_ip_str, task=task)
                             msg = bytes(str(socket_address[1]), encoding='utf-8')
                             connection.sendall(msg)
                             print(f'*** port sent to board as bytes {msg} ***')
@@ -74,7 +92,7 @@ class Server:
         print(f'*** done finding all boards, boards connected to server: {len(self.boards)} ***')
         return 0
 
-    def add_board(self, ipv4):
+    def add_board(self, ipv4, task='test_time_sync'):
         socket_this_side = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         socket_address = (self.ipv4, self.last_used_port + 1)
 
@@ -102,24 +120,25 @@ class Server:
                              "port_this_side": socket_address[1],
                              "last_response": None,
                              "stream_data": deque()}
+        if task == 'test_time_sync':
+            thread = threading.Thread(target=wait_to_send_msgs,
+                                      args=(socket_this_side, self.boards[ipv4],
+                                            self.start_flag, self.end_flag, self.exit_flag, self.broadcast_socket))
+        elif task == 'send_data':
+            thread = threading.Thread(target=wait_and_plot_incoming_accel_data,
+                                      args=(socket_this_side, self.boards[ipv4], self.exit_flag))
 
-        # thread = threading.Thread(target=wait_to_send_msgs,
-        #                           args=(socket_this_side, self.boards[ipv4],
-        #                                 self.start_flag, self.end_flag, self.exit_flag))
-
-        thread = threading.Thread(target=wait_and_plot_incoming_accel_data,
-                                  args=(socket_this_side, self.boards[ipv4],
-                                        self.exit_flag))
         thread.start()
         self.boards[ipv4]['thread'] = thread
 
         return socket_address
 
-    def send_msg_to_all_boards(self, msg):
-        global str_to_send, thread_tasks_done
+    def send_msg_to_all_boards_tcp(self, msg):
+        global str_to_send, thread_tasks_done, using_udp
 
         str_to_send = msg
         thread_tasks_done = 0
+        using_udp = False
 
         if msg == 'exit':
             self.exit_flag.set()
@@ -131,6 +150,98 @@ class Server:
                     self.boards[ipv4]['thread'].join()
 
             return 0
+
+        self.end_flag.clear()
+        self.start_flag.set()
+
+        while thread_tasks_done != len(self.boards):
+            time.sleep(0.1)
+
+        self.start_flag.clear()
+        self.end_flag.set()
+
+        return 0
+
+    def send_msg_to_all_boards_udp(self, msg):
+        global str_to_send, thread_tasks_done, using_udp
+
+        thread_tasks_done = 0
+        using_udp = True
+
+        if msg == 'exit':
+            self.exit_flag.set()
+            self.start_flag.set()
+
+            # close out of any active connections running in child threads
+            if msg == 'exit':
+                for ipv4 in self.boards:
+                    self.boards[ipv4]['thread'].join()
+
+            return 0
+
+        else:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_BROADCAST, 1)
+
+            addy1 = ('192.168.137.255', 10012)
+            # sock.bind(addy1)
+
+            # addy2 = ('10.10.10.255', 10012)
+            # sock.bind(addy2)
+
+            # addy3 = ('', 10012)
+            # sock.bind(addy3)
+
+            sent_bytes = sock.sendto(bytes(msg, encoding='utf-8'), addy1)
+            print(f'*** Successfully sent {sent_bytes} bytes on broadcast socket: {addy1} ***')
+
+            # sent_bytes = sock.sendto(bytes(msg, encoding='utf-8'), addy2)
+            # print(f'*** Successfully sent {sent_bytes} bytes on broadcast socket: {addy2} ***')
+
+            # sent_bytes = sock.sendto(bytes(msg, encoding='utf-8'), addy3)
+            # print(f'*** Successfully sent {sent_bytes} bytes on broadcast socket: {addy3} ***')
+
+        self.end_flag.clear()
+        self.start_flag.set()
+
+        while thread_tasks_done != len(self.boards):
+            time.sleep(0.1)
+
+        self.start_flag.clear()
+        self.end_flag.set()
+
+        return 0
+
+    def send_msg_to_all_boards_mac(self, msg):
+        global str_to_send, thread_tasks_done, using_udp
+
+        thread_tasks_done = 0
+        using_udp = True
+
+        if msg == 'exit':
+            self.exit_flag.set()
+            self.start_flag.set()
+
+            # close out of any active connections running in child threads
+            if msg == 'exit':
+                for ipv4 in self.boards:
+                    self.boards[ipv4]['thread'].join()
+
+            return 0
+
+        else:
+            s = socket(socket.AF_PACKET, socket.SOCK_RAW)
+            s.bind(("Wireless LAN adapter Wi-Fi", 0))
+
+            src_addr = "\x70\xBC\x10\x69\x98\xB7"
+            dst_addr = "\x40\x06\xA0\x97\x5E\xB6"
+            payload = "1 - ayo"
+            # checksum = "\x1a\x2b\x3c\x4d"
+            ethertype = "\x08\x01"
+
+            # s.send(dst_addr + src_addr + ethertype + payload + checksum)
+            s.sendall(dst_addr + src_addr + ethertype + payload)
+            s.close()
 
         self.end_flag.clear()
         self.start_flag.set()
@@ -158,28 +269,32 @@ class Server:
             self.boards[ipv4]['socket_this_side'].close()
 
 
-def wait_to_send_msgs(sock, coms_dict, start_flag, end_flag, exit_flag):
-    global str_to_send, thread_tasks_done
+def wait_to_send_msgs(sock, coms_dict, start_flag, end_flag, exit_flag, broadcast_socket):
+    global str_to_send, thread_tasks_done, using_udp
     while not exit_flag.is_set():
         # Wait for a connection
         connection, client_address = sock.accept()
-
         try:
             while not exit_flag.is_set():
                 start_flag.wait()
-
                 if exit_flag.is_set():
                     return 0
 
-                my_msg = bytes(str_to_send, encoding='utf-8')
-                connection.sendall(my_msg)
+                if not using_udp:
+                    my_msg = bytes(str_to_send, encoding='utf-8')
+                    connection.sendall(my_msg)
 
                 # wait for any response
                 data = None
                 while not data:
-                    data = connection.recv(50)
+                    if not using_udp:
+                        data = connection.recv(MESSAGE_SIZE)
+                    else:
+                        data, server = broadcast_socket.recvfrom(MESSAGE_SIZE)
+
                     if data:
                         coms_dict['last_response'] = util.strip_end_bytes(data)
+                        coms_dict['last_response_server'] = server
 
                 # increment threads task counter
                 thread_tasks_done += 1
