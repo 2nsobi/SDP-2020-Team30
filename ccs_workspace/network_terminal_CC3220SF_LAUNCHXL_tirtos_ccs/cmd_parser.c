@@ -1673,12 +1673,13 @@ int32_t ParseCreateFilterCmd(void *arg,  CreateFilterCmd_t *CreateFilterParams)
     /* If host event was selected, take the event ID: */
     if(hostEvent)
     {
-        UART_PRINT(
-            "\r\n [Cmd Parser] : Please enter user ID, in range: [0,63]"
-            " (needed for Host event action).\n\r");
-        UART_PRINT(cmdPromptStr);
-        ret = GetCmd((char *)cmdStr, CMD_BUFFER_LEN);
-        token = strtok(cmdStr, " ");
+//        UART_PRINT(
+//            "\r\n [Cmd Parser] : Please enter user ID, in range: [0,63]"
+//            " (needed for Host event action).\n\r");
+//        UART_PRINT(cmdPromptStr);
+//        ret = GetCmd((char *)cmdStr, CMD_BUFFER_LEN);
+//        token = strtok(cmdStr, " ");
+        token = 1;
         if(token)
         {
             CreateFilterParams->action.UserId = (uint8_t)atol(token);
