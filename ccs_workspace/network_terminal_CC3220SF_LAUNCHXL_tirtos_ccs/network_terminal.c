@@ -408,15 +408,6 @@ void SimpleLinkWlanEventHandler(SlWlanEvent_t *pWlanEvent)
                pWlanEvent->Data.P2PRequest.GoDeviceName,
                pWlanEvent->Data.P2PRequest.GoDeviceNameLen);
 
-//        //nnaji edit start
-//        memset(&(app_CB.P2P_CB.Mac), '\0',
-//               sizeof(app_CB.P2P_CB.Mac));
-//        memcpy(&app_CB.P2P_CB.Mac,
-//               pWlanEvent->Data.P2PDevFound.Mac,
-//               strlen((const char *)pWlanEvent->Data.P2PDevFound.Mac));
-//        UART_PRINT("\n\rhey nnaji: %d\n\r",strlen((const char *)pWlanEvent->Data.P2PDevFound.Mac));
-//        //nnaji edit end
-
         sem_post(&app_CB.P2P_CB.RcvNegReq);
     }
     break;
@@ -1884,7 +1875,7 @@ void * mainThread(void *arg)
     if(RetVal < 0)
     {
         /* Handle Error */
-        UART_PRINT("sl_NetAppMDNSUnRegisterService failed - %d\n",RetVal);
+        UART_PRINT("sl_NetAppMDNSUnRegisterService failed - %d\n\r",RetVal);
         return(NULL);
     }
     /* Output device information to the UART terminal */
@@ -1894,7 +1885,7 @@ void * mainThread(void *arg)
     {
         /* Handle Error */
         UART_PRINT(
-            "Network Terminal - Unable to retrieve device information \n");
+            "Network Terminal - Unable to retrieve device information \n\r");
         return(NULL);
     }
 
@@ -1915,11 +1906,11 @@ void * mainThread(void *arg)
     i2c = I2C_open(CONFIG_I2C_BMA222E, &i2cParams);
     if (i2c == NULL)
     {
-        UART_PRINT("Error Initializing I2C\n");
+        UART_PRINT("Error Initializing I2C\n\r");
     }
     else
     {
-        UART_PRINT("I2C Initialized!\n");
+        UART_PRINT("I2C Initialized!\n\r");
     }
     /* This is actually a data readout template function provided by the bosch
      * opensource support file(we are using this as is). Modification has been
@@ -1931,20 +1922,24 @@ void * mainThread(void *arg)
      * bma2x2_support.c file as per his need. */
     if(BMA2x2_INIT_VALUE != bma2x2_data_readout_template(i2c))
     {
-        UART_PRINT("Error Initializing bma222e\n");
+        UART_PRINT("Error Initializing bma222e\n\r");
     }
 
     /* connect to AP defined in ap_connection.c */
-    connectToAP();
+//    connectToAP();
 
     /* get socket port to use for transmitting data to AP */
-    uint16_t portForTX = get_port_for_data_tx();
+//    uint16_t portForTX = get_port_for_data_tx();
 
     /* test transmitting packets continuously to AP */
-    transmit_data_forever_test(portForTX);
+//    transmit_data_forever_test(portForTX);
 
     /* test time drift */
 //    time_drift_test(portForTX);
+//    time_drift_test_l3(portForTX);
+//    time_drift_test_l2();
+
+    tx_accelerometer(0);
 
     /*
      * Calling UART handling method which serves as the application main loop.

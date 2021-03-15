@@ -52,7 +52,8 @@
 extern void * mainThread(void *arg0);
 
 /* Stack size in bytes */
-#define THREADSTACKSIZE    4096
+//#define THREADSTACKSIZE    4096
+#define THREADSTACKSIZE    16384
 
 /*
  *  ======== main ========

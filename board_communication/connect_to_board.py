@@ -6,13 +6,17 @@ from server import Server
 from util.pylive import live_plotter_xy
 import time
 import numpy as np
+import scapy.all as scapy
 
 
 def main():
     # setup and start windows "hostednetwork" soft AP
     ap = WindowsSoftAP()
-    ap.start_ap()
+    # ap.start_ap()
     server_ip = ap.get_ipv4()
+    if server_ip is None:
+        print('server_ip is None')
+        quit()
 
     # Create and start server for communicating with boards
     server = Server(server_ip, board_count=1)
@@ -20,32 +24,52 @@ def main():
     # start_server() returns socket for server that is already listening for incoming connections
     server_entry_socket = server.start_server()
 
-    retval = server.wait_for_all_boards_to_connect()
+    """
+    For testing clock drift
+    """
+
+    retval = server.wait_for_all_boards_to_connect(task='test_time_sync')
+    udp = True
 
     if retval < 0:
         # ap.stop_ap()
         return 0
 
-    """
-    For testing clock drift
-    """
-    # while True:
-    #     msg = input('Enter msg to send to all boards: ')
-    #
-    #     server.send_msg_to_all_boards(msg)
-    #
-    #     if msg == 'exit':
-    #         # make sure to send "exit" msg to send_msg_to_all_boards() before exiting so that all child threads are
-    #         # closed as well
-    #         return 0
-    #
-    #     for i, board_ip in enumerate(server.boards):
-    #         print(f'[board {i}] response from board with ip {board_ip}:\n{server.boards[board_ip]["last_response"]}')
-    #     print()
+    while True:
+        msg = input('Enter msg to send to all boards: ')
+
+        if not udp:
+            server.send_msg_to_all_boards_tcp(msg)
+        else:
+            server.send_msg_to_all_boards_udp(msg)
+
+        if msg == 'exit':
+            # make sure to send "exit" msg to send_msg_to_all_boards() before exiting so that all child threads are
+            # closed as well
+            return 0
+
+        for i, board_ip in enumerate(server.boards):
+            print(i, board_ip)
+            if not udp:
+                print(f'[board {i}] response from board with ip {board_ip}:'
+                      f'\n{server.boards[board_ip]["last_response"]}')
+            else:
+                print(f'[board {i}] response from board with ip {board_ip} '
+                      f'(server: {server.boards[board_ip]["last_response_server"]}):'
+                      f'\n{server.boards[board_ip]["last_response"]}')
+        print()
+    quit()
 
     """
     For plotting data stream
     """
+
+    retval = server.wait_for_all_boards_to_connect(task='send_data')
+
+    if retval < 0:
+        # ap.stop_ap()
+        return 0
+
     max_period = 50
     x_vecs = []
     y_vecs = []

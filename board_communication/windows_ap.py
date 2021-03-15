@@ -3,6 +3,7 @@ import re
 from util.util import run_cmd
 from concurrent.futures import ThreadPoolExecutor
 
+
 class WindowsSoftAP:
     def __init__(self, ssid="test_ap_1", key="12345678"):
         """
@@ -70,13 +71,14 @@ class WindowsSoftAP:
 
         :return: (str) IPv4 address of the AP in the form: "xxx.xxx.xxx.xxx"
         """
-        stdout = run_cmd("ipconfig /all", show=False)
+        stdout = run_cmd("ipconfig /all", show=False).lower().split(sep='\n')
         record_next_ip = False
         ip = None
-        for line in stdout.lower().split(sep='\n'):
+        for line in stdout:
             if not record_next_ip:
                 # this will be read in the "description" line of an adapter
-                if "microsoft hosted network virtual adapter" in line:
+                if "microsoft hosted network virtual adapter" in line \
+                        or "microsoft wi-fi direct virtual adapter" in line:
                     record_next_ip = True
             else:
                 if "ipv4 address" in line:
@@ -86,8 +88,9 @@ class WindowsSoftAP:
                 # if another "description" is read before an "ipv4 address" there is no associated IPv4 address with
                 # the "microsoft hosted network virtual adapter" adapter, most likely because the hostednetwork
                 # is not running
-                elif "description" in line:
-                    break
+                elif "description" in line and not ("microsoft hosted network virtual adapter" in line
+                                                    or "microsoft wi-fi direct virtual adapter" in line):
+                    record_next_ip = False
         return ip
 
 
