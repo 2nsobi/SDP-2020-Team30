@@ -1926,7 +1926,7 @@ void * mainThread(void *arg)
     }
 
     /* connect to AP defined in ap_connection.c */
-//    connectToAP();
+    connectToAP();
 
     /* get socket port to use for transmitting data to AP */
 //    uint16_t portForTX = get_port_for_data_tx();
@@ -1939,7 +1939,9 @@ void * mainThread(void *arg)
 //    time_drift_test_l3(portForTX);
 //    time_drift_test_l2();
 
-    tx_accelerometer(0);
+    //tx_accelerometer(0);
+
+    //test_time_beac_sync();
 
     /*
      * Calling UART handling method which serves as the application main loop.

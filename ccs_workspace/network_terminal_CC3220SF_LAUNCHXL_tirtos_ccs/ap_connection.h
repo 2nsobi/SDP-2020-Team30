@@ -57,4 +57,6 @@ int32_t tx_accelerometer(uint16_t sockPort);
 
 int32_t q_to_string(queue_t * q, uint8_t * buf);
 
+int32_t test_time_beac_sync();
+
 #endif /* AP_CONNECTION_H_ */
