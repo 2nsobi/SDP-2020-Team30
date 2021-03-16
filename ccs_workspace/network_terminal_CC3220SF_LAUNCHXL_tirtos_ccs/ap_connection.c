@@ -54,9 +54,7 @@ int32_t connectToAP()
     int32_t ret = 0;
     ConnectCmd_t ConnectParams;
 
-    /* Call the command parser */
     memset(&ConnectParams, 0x0, sizeof(ConnectCmd_t));
-
 
     uint8_t ssid[] = AP_SSID;
     uint8_t key[] = AP_KEY;
@@ -824,6 +822,218 @@ int32_t tx_accelerometer(uint16_t sockPort)
 
         UART_PRINT("\n\r");
         sleep(2);
+    }
+
+    /* Calling 'close' with the socket descriptor,
+    * once operation is finished. */
+    status = sl_Close(beaconRxSock);
+    ASSERT_ON_ERROR(status, SL_SOCKET_ERROR);
+
+    return(0);
+}
+
+int32_t test_time_beac_sync()
+{
+    /* ALWAYS DECLARE ALL VARIABLES AT TOP OF FUNCTION TO AVOID BUFFER ISSUES */
+    uint32_t buflen = MESSAGE_SIZE;
+    uint32_t channel = 11;
+    _i16 cur_channel;
+    _i16 numBytes;
+    _i16 status;
+    uint8_t Rx_frame[MAX_RX_PACKET_SIZE];
+    uint32_t i=0;
+    uint32_t j=0;
+    _u32 nonBlocking = 1;
+    uint32_t timestamp = 0;
+    uint16_t beacInterval;
+    frameInfo_t frameInfo;
+    _i16 beaconRxSock;
+    queue_t q;
+    int32_t reading[MAX_ELEM_ARR_SIZE];
+    struct timespec cur_time;
+    int32_t last_beac_ts = -1;
+    int32_t counter = 0;
+
+    sockAddr_t sAddr;
+    uint16_t entry_port = ENTRY_PORT;
+    SlSockAddr_t * sa;
+    int32_t tcp_sock;
+    int32_t addrSize;
+
+    /* for on-board accelerometer */
+    /* structure to read the accelerometer data*/
+    /* the resolution is in 8 bit*/
+    struct bma2x2_accel_data_temp sample_xyzt;
+
+    uint8_t createFilterArgs1[] = " -f FRAME_TYPE -v management -e not_equals -a drop -m L1";
+    uint8_t createFilterArgs2[] = " -f S_MAC -v 72:BC:10:69:9C:B6 -e not_equals -a drop -m L1";
+//    uint8_t createFilterArgs3[] = " -f S_MAC -v 72:BC:10:69:9C:B6 -e equals -a event -m L1";
+//    uint8_t createFilterArgs2[] = " -f S_MAC -v 58:00:e3:43:6b:63 -e not_equals -a drop -m L1";
+//    uint8_t createFilterArgs3[] = " -f S_MAC -v 58:00:e3:43:6b:63 -e equals -a event -m L1";
+    uint8_t enableFilterArgs[] = "";
+
+    status = cmdCreateFilterCallback(createFilterArgs1);
+    ASSERT_ON_ERROR(status, WLAN_ERROR);
+
+    status = cmdCreateFilterCallback(createFilterArgs2);
+    ASSERT_ON_ERROR(status, WLAN_ERROR);
+
+//    status = cmdCreateFilterCallback(createFilterArgs3);
+//    ASSERT_ON_ERROR(status, WLAN_ERROR);
+
+    status = cmdEnableFilterCallback(enableFilterArgs);
+    ASSERT_ON_ERROR(status, WLAN_ERROR);
+
+    memset(Rx_frame, 0, MAX_RX_PACKET_SIZE);
+
+    UART_PRINT("[nnaji msg] buflen: %i\n\r", buflen);
+
+    /* To use transceiver mode, the device must be set in STA role, be disconnected, and have disabled
+        previous connection policies that might try to automatically connect to an AP. */
+    status = sl_WlanPolicySet(SL_WLAN_POLICY_CONNECTION, SL_WLAN_CONNECTION_POLICY(0, 0, 0, 0), NULL, 0);
+    if( status )
+    {
+        UART_PRINT("[line:%d, error:%d]\n\r", __LINE__, status);
+        return(-1);
+    }
+
+    beaconRxSock = sl_Socket(SL_AF_RF, SL_SOCK_DGRAM, channel);
+    ASSERT_ON_ERROR(beaconRxSock, SL_SOCKET_ERROR);
+
+    status = sl_SetSockOpt(beaconRxSock, SL_SOL_SOCKET, SL_SO_NONBLOCKING, &nonBlocking, sizeof(nonBlocking));
+    if(status < 0)
+    {
+        UART_PRINT("[line:%d, error:%d] %s\n\r", __LINE__, status,
+                   SL_SOCKET_ERROR);
+        sl_Close(beaconRxSock);
+        return(-1);
+    }
+
+    initQueue(&q);
+    while(1)
+    {
+        numBytes = sl_Recv(beaconRxSock, &Rx_frame, MAX_RX_PACKET_SIZE, 0);
+        if(numBytes != SL_ERROR_BSD_EAGAIN)
+        {
+            if(numBytes < 0)
+            {
+                UART_PRINT("[line:%d, error:%d] %s\n\r", __LINE__, numBytes,
+                           SL_SOCKET_ERROR);
+                break;
+            }
+
+            parse_beacon_frame(Rx_frame, &frameInfo, 0);
+        }
+        else
+            continue;
+
+        if(last_beac_ts == frameInfo.timestamp)
+            continue;
+
+        reading[0] = frameInfo.timestamp;
+
+        clock_gettime(CLOCK_REALTIME, &cur_time);
+        reading[1] = (int32_t) (cur_time.tv_sec * 1000 + cur_time.tv_nsec / 1000000);
+
+        if(qFull(&q))
+            deque(&q);
+        enque(&q, reading);
+
+//        UART_PRINT("most recent reading: {%u, %u, %i, %i, %i}\n\r", reading[0], reading[1], reading[2], reading[3], reading[4]);
+//        UART_PRINT("q contents:\n\r");
+//        for(i=0;i<q.size;i++)
+//            UART_PRINT("%i: {%u, %u, %i, %i, %i}\n\r", i, q.arr[qIndex(&q,i)][0], q.arr[qIndex(&q,i)][1],
+//                       q.arr[qIndex(&q,i)][2], q.arr[qIndex(&q,i)][3], q.arr[qIndex(&q,i)][4]);
+
+        if(counter / 5000.0f > 1)
+        {
+            UART_PRINT("%i %f\n\r", counter, counter / 60000.0f);
+            // stop transeiver mode
+            // connnect to accept point
+            // connect to tcp socket
+            // send data
+            // re-enable tranceiver mode
+
+            status = sl_Close(beaconRxSock);
+            ASSERT_ON_ERROR(status, SL_SOCKET_ERROR);
+
+            status = connectToAP();
+            if(status < 0)
+            {
+                UART_PRINT("could not connect to AP\n\r");
+                return -1;
+            }
+
+            /* filling the TCP server socket address */
+            sAddr.in4.sin_family = SL_AF_INET;
+
+            /* Since this is the client's side,
+             * we must know beforehand the IP address
+             * and the port of the server wer'e trying to connect.
+             */
+            sAddr.in4.sin_port = sl_Htons((unsigned short)entry_port);
+            sAddr.in4.sin_addr.s_addr = sl_Htonl((unsigned int)app_CB.CON_CB.GatewayIP);
+
+            sa = (SlSockAddr_t*)&sAddr.in4;
+            addrSize = sizeof(SlSockAddrIn6_t);
+
+            /* Get socket descriptor - this would be the
+             * socket descriptor for the TCP session.
+             */
+            tcp_sock = sl_Socket(sa->sa_family, SL_SOCK_STREAM, TCP_PROTOCOL_FLAGS);
+            ASSERT_ON_ERROR(tcp_sock, SL_SOCKET_ERROR);
+
+            status = -1;
+
+            while(status < 0)
+            {
+                /* Calling 'sl_Connect' followed by server's
+                 * 'sl_Accept' would start session with
+                 * the TCP server. */
+                status = sl_Connect(tcp_sock, sa, addrSize);
+                if((status == SL_ERROR_BSD_EALREADY)&& (TRUE == nonBlocking))
+                {
+                    sleep(1);
+                    continue;
+                }
+                else if(status < 0)
+                {
+                    UART_PRINT("[line:%d, error:%d] %s\n\r", __LINE__, status,
+                               SL_SOCKET_ERROR);
+                    sl_Close(tcp_sock);
+                    return(-1);
+                }
+                break;
+            }
+
+            memset(Tx_data, 0, MAX_TX_PACKET_SIZE);
+            q_to_string(&q, Tx_data);
+
+            status = sl_Send(tcp_sock, &Tx_data, strlen(Tx_data), 0);
+            if(status < 0)
+            {
+                UART_PRINT("[line:%d, error:%d] %s\n\r", __LINE__, status,
+                           SL_SOCKET_ERROR);
+                break;
+            }
+
+            counter = 0;
+        }
+//        else
+//        {
+//            if(counter % 10000 == 0)
+//            {
+//                UART_PRINT("%u %u\n\r", frameInfo.timestamp,last_beac_ts);
+//                UART_PRINT("%u\n\r", (frameInfo.timestamp-last_beac_ts)/1000);
+//                UART_PRINT("%i %f\n\r\n\r", counter, counter / 60000.0f);
+//            }
+//        }
+
+        if(last_beac_ts!=-1)
+        {
+            counter += (frameInfo.timestamp - last_beac_ts)/1000;
+        }
+        last_beac_ts = frameInfo.timestamp;
     }
 
     /* Calling 'close' with the socket descriptor,
