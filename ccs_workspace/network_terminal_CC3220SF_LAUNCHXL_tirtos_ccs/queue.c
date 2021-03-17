@@ -42,10 +42,16 @@ int32_t enque(queue_t * q, int32_t * vals)
 
     int32_t i;
 
-    q->back = (q->back + 1) % q->capacity;
-    for(i=0;i<MAX_ELEM_ARR_SIZE;i++)
+    UART_PRINT("start looping for enque\n\r");
+    UART_PRINT("%i = (%i + 1) %% %i\n\r", q->back, q->back, q->capacity);
+    q->back = (q->back + 1) % OUR_MAX_QUEUE_SIZE;
+//    q->back = (q->back + 1) % q->capacity;
+    for(i=0;i<MAX_ELEM_ARR_SIZE;i++){
+        UART_PRINT("%i\n\r", q->back);
         q->arr[q->back][i] = vals[i];
+    }
     q->size++;
+    UART_PRINT("end looping for enque\n\r");
 
     return 0;
 }

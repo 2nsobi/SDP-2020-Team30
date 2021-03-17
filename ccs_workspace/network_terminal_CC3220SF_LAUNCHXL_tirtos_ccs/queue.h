@@ -8,15 +8,14 @@
 #ifndef QUEUE_H_
 #define QUEUE_H_
 
-#define OUR_MAX_QUEUE_SIZE          300
+#define OUR_MAX_QUEUE_SIZE          3
 #define MAX_ELEM_ARR_SIZE           5
 
 #include <stdint.h>
 #include "network_terminal.h"
 
 typedef struct{
-    int32_t front, back, size;
-    uint32_t capacity;
+    int32_t front, back, size, capacity;
     int32_t arr[OUR_MAX_QUEUE_SIZE][MAX_ELEM_ARR_SIZE];
 } queue_t;
 
