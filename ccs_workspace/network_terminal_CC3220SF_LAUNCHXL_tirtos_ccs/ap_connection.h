@@ -59,4 +59,6 @@ int32_t q_to_string(queue_t * q, uint8_t * buf);
 
 int32_t test_time_beac_sync();
 
+_i16 enter_tranceiver_mode();
+
 #endif /* AP_CONNECTION_H_ */
