@@ -22,6 +22,22 @@
             }\
         }
 
+/* Application defines */
+#define WLAN_EVENT_TOUT             (10000)
+#define TIMEOUT_SEM                 (-1)
+#define TCP_PROTOCOL_FLAGS          0
+#define BUF_LEN                     (MAX_BUF_SIZE - 20)
+
+/* custom defines */
+#define AP_SSID                     "jonah_ap"
+#define AP_KEY                      "12345678"
+#define ENTRY_PORT                  10000
+#define BILLION                     1000000000
+#define MESSAGE_SIZE                50
+#define NUM_READINGS                300
+#define MAX_RX_PACKET_SIZE          1544
+#define MAX_TX_PACKET_SIZE          30000
+
 typedef struct
 {
     uint16_t frameControl;
@@ -56,6 +72,8 @@ int32_t parse_beacon_frame(uint8_t * Rx_frame, frameInfo_t * frameInfo, uint8_t 
 int32_t tx_accelerometer(uint16_t sockPort);
 
 int32_t q_to_string(queue_t * q, uint8_t * buf);
+
+int32_t ts_to_string(uint32_t timestamps[][NUM_READINGS], uint32_t current_ts_index, uint8_t * buf);
 
 int32_t test_time_beac_sync();
 

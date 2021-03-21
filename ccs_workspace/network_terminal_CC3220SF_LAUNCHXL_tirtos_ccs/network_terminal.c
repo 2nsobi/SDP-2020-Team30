@@ -1803,7 +1803,7 @@ void * mainThread(void *arg)
     GPIO_init();
 
     /* for on-board accelerometer */
-    I2C_init();
+//    I2C_init();
 
     /* Init Application variables */
     RetVal = initAppVariables();
@@ -1899,19 +1899,19 @@ void * mainThread(void *arg)
 //    //////////////////
 
     /* for on-board accelerometer */
-    I2C_Params_init(&i2cParams);
-    i2cParams.bitRate = I2C_400kHz;
-    i2cParams.transferMode = I2C_MODE_BLOCKING;
-    i2cParams.transferCallbackFxn = NULL;
-    i2c = I2C_open(CONFIG_I2C_BMA222E, &i2cParams);
-    if (i2c == NULL)
-    {
-        UART_PRINT("Error Initializing I2C\n\r");
-    }
-    else
-    {
-        UART_PRINT("I2C Initialized!\n\r");
-    }
+//    I2C_Params_init(&i2cParams);
+//    i2cParams.bitRate = I2C_400kHz;
+//    i2cParams.transferMode = I2C_MODE_BLOCKING;
+//    i2cParams.transferCallbackFxn = NULL;
+//    i2c = I2C_open(CONFIG_I2C_BMA222E, &i2cParams);
+//    if (i2c == NULL)
+//    {
+//        UART_PRINT("Error Initializing I2C\n\r");
+//    }
+//    else
+//    {
+//        UART_PRINT("I2C Initialized!\n\r");
+//    }
     /* This is actually a data readout template function provided by the bosch
      * opensource support file(we are using this as is). Modification has been
      * done to the API signature the i2c handle as the parameter,  also the API
@@ -1920,10 +1920,10 @@ void * mainThread(void *arg)
      * function) This API does the initialization job for us hence we are using
      * it without any modificaitons. User should be able to modify the
      * bma2x2_support.c file as per his need. */
-    if(BMA2x2_INIT_VALUE != bma2x2_data_readout_template(i2c))
-    {
-        UART_PRINT("Error Initializing bma222e\n\r");
-    }
+//    if(BMA2x2_INIT_VALUE != bma2x2_data_readout_template(i2c))
+//    {
+//        UART_PRINT("Error Initializing bma222e\n\r");
+//    }
 
     /* connect to AP defined in ap_connection.c */
 //    connectToAP();
@@ -1947,15 +1947,9 @@ void * mainThread(void *arg)
      * Calling UART handling method which serves as the application main loop.
      * Note that this function doesn't return.
      */
-    RetVal = cmd_prompt(NULL);
+    //RetVal = cmd_prompt(NULL);
 
-    if(RetVal)
-    {
-        while(1)
-        {
-            ;
-        }
-    }
+    UART_PRINT("Exiting Program");
 
     return(0);
 }

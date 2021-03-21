@@ -5,7 +5,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 
 class WindowsSoftAP:
-    def __init__(self, ssid="test_ap_1", key="12345678"):
+    def __init__(self, ssid="test_ap_1", key="1234567890"):
         """
         Class to create and start the netsh "hostednetwork" soft AP Windows feature
 
