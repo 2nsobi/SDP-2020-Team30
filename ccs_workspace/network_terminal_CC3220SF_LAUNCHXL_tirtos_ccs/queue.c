@@ -62,7 +62,8 @@ int32_t * deque(queue_t * q)
         return -1;
 
     int32_t * itemsPtr = q->arr[q->front];
-    q->front = (q->front + 1) % q->capacity;
+//    q->front = (q->front + 1) % q->capacity;
+    q->front = (q->front + 1) % OUR_MAX_QUEUE_SIZE;
     q->size--;
 
     return itemsPtr;
@@ -70,7 +71,8 @@ int32_t * deque(queue_t * q)
 
 int32_t qFull(queue_t * q)
 {
-    if(q->size==q->capacity)
+//    if(q->size==q->capacity)
+    if(q->size==OUR_MAX_QUEUE_SIZE)
         return 1;
     return 0;
 }
@@ -100,6 +102,7 @@ int32_t qIndex(queue_t * q, int32_t i)
 {
     if(qEmpty(q))
         return -1;
-    return (q->front + i) % q->capacity;
+//    return (q->front + i) % q->capacity;
+    return (q->front + i) % OUR_MAX_QUEUE_SIZE;
 }
 

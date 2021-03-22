@@ -93,7 +93,7 @@
 									<listOptionValue builtIn="false" value="ti/devices/cc32xx/driverlib/ccs/Release/driverlib.a"/>
 									<listOptionValue builtIn="false" value="libc.a"/>
 								</option>
-								<option id="com.ti.ccstudio.buildDefinitions.TMS470_20.2.linkerID.HEAP_SIZE.2030358755" name="Heap size for C/C++ dynamic memory allocation (--heap_size, -heap)" superClass="com.ti.ccstudio.buildDefinitions.TMS470_20.2.linkerID.HEAP_SIZE" value="0x00040000" valueType="string"/>
+								<option id="com.ti.ccstudio.buildDefinitions.TMS470_20.2.linkerID.HEAP_SIZE.2030358755" name="Heap size for C/C++ dynamic memory allocation (--heap_size, -heap)" superClass="com.ti.ccstudio.buildDefinitions.TMS470_20.2.linkerID.HEAP_SIZE" value="" valueType="string"/>
 								<option id="com.ti.ccstudio.buildDefinitions.TMS470_20.2.linkerID.STACK_SIZE.338526388" name="Set C system stack size (--stack_size, -stack)" superClass="com.ti.ccstudio.buildDefinitions.TMS470_20.2.linkerID.STACK_SIZE" value="" valueType="string"/>
 								<inputType id="com.ti.ccstudio.buildDefinitions.TMS470_20.2.exeLinker.inputType__CMD_SRCS.1798109899" name="Linker Command Files" superClass="com.ti.ccstudio.buildDefinitions.TMS470_20.2.exeLinker.inputType__CMD_SRCS"/>
 								<inputType id="com.ti.ccstudio.buildDefinitions.TMS470_20.2.exeLinker.inputType__CMD2_SRCS.1511103157" name="Linker Command Files" superClass="com.ti.ccstudio.buildDefinitions.TMS470_20.2.exeLinker.inputType__CMD2_SRCS"/>
