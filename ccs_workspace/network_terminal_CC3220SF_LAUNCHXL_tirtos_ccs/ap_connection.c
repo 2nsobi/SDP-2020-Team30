@@ -868,7 +868,8 @@ int32_t test_time_beac_sync()
     SlSockAddr_t * sa;
     int32_t tcp_sock;
     int32_t addrSize;
-    int32_t no_bytes_count = 1000;
+    int32_t no_bytes_count = 0;
+    int32_t beacon_count = 0;
 
     /* filling the TCP server socket address */
     sAddr.in4.sin_family = SL_AF_INET;
@@ -907,6 +908,8 @@ int32_t test_time_beac_sync()
             //UART_PRINT("Beacon recieved \n\r");
             clock_gettime(CLOCK_REALTIME, &cur_time);
             parse_beacon_frame(Rx_frame, &frameInfo, 0);
+            beacon_count+=1;
+            UART_PRINT("%d beacons recieved\n\r", beacon_count);
         }
         else{
             no_bytes_count += 1;
@@ -939,6 +942,8 @@ int32_t test_time_beac_sync()
             // connect to tcp socket
             // send data
             // re-enable tranceiver mode
+
+            beacon_count = 0;
             UART_PRINT("Exiting tranciever mode\n\r");
             status = sl_Close(beaconRxSock);
             ASSERT_ON_ERROR(status, SL_SOCKET_ERROR);
