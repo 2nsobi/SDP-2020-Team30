@@ -6,11 +6,12 @@ from PyAccessPoint import pyaccesspoint
 import datetime
 import logging
 
-WINDOWS = True
+WINDOWS = False
+LINUX_HOTSPOT = True
 ENTRY_PORT = 10000
 
 # time of test in minutes
-TEST_LEN = 2
+TEST_LEN = 600
 
 ROOT_FOLDER = ""
 
@@ -56,7 +57,7 @@ def create_files(uid):
 
 
 def setup_ap():
-    access_point = pyaccesspoint.AccessPoint()
+    access_point = pyaccesspoint.AccessPoint(use_custom_hostapd=False)
     access_point.start()
 
     if access_point.is_running():
@@ -67,12 +68,16 @@ def setup_ap():
     return access_point
 
 
-def linux(end_time):
+def linux(end_time, linux_hotspot = LINUX_HOTSPOT):
     global ENTRY_PORT
     try:
-        ap = setup_ap()
-        server_ip = ap.ip
+        if linux_hotspot:
+            server_ip = "10.42.0.1"
+        else:
+            ap = setup_ap()
+            server_ip = ap.ip
         ENTRY_PORT = 10000
+
 
         entry_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  # Create a TCP/IP socket
         entry_address = (server_ip, ENTRY_PORT)
@@ -100,7 +105,8 @@ def linux(end_time):
     except Exception as e:
         logger.info(e)
     finally:
-        ap.stop()
+        if not linux_hotspot:
+            ap.stop()
 
 
 def parse_mcu_msg(data, uid):

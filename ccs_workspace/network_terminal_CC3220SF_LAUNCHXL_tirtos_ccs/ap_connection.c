@@ -24,7 +24,7 @@
 
 
 //#define MAC_FILTER_ARGS           " -f S_MAC -v 5A:FB:84:5D:70:05 -e not_equals -a drop -m L1"
-#define MAC_FILTER_ARGS           " -f S_MAC -v 6a:00:e3:43:6b:63 -e not_equals -a drop -m L1"
+#define MAC_FILTER_ARGS           " -f S_MAC -v 58:00:e3:43:6b:63 -e not_equals -a drop -m L1"
 
 /* for on-board accelerometer */
 #include <ti/sail/bma2x2/bma2x2.h>
@@ -47,9 +47,24 @@ int32_t connectToAP()
 
     uint8_t ssid[] = AP_SSID;
     uint8_t key[] = AP_KEY;
-    SlWlanSecParams_t secParams = { .Type = SL_WLAN_SEC_TYPE_WPA_WPA2,
-                                    .Key = (signed char *)key,
-                                    .KeyLen = strlen((const char *)key) };
+
+//    SlWlanSecParams_t secParams = { .Type = SL_WLAN_SEC_TYPE_OPEN,
+//                                        .Key = (signed char *)key,
+//                                        .KeyLen = strlen((const char *)key) };
+
+    SlWlanSecParams_t secParams = { .Type = SL_WLAN_SEC_TYPE_WPA,
+                                        .Key = (signed char *)key,
+                                        .KeyLen = strlen((const char *)key) };
+
+//    SlWlanSecParams_t secParams = { .Type = SL_WLAN_SEC_TYPE_WPA2_PLUS,
+//                                        .Key = (signed char *)key,
+//                                        .KeyLen = strlen((const char *)key) };
+
+
+
+//    SlWlanSecParams_t secParams = { .Type = SL_WLAN_SEC_TYPE_WPA_WPA2,
+//                                    .Key = (signed char *)key,
+//                                    .KeyLen = strlen((const char *)key) };
 
     ConnectParams.ssid = ssid;
     ConnectParams.secParams = secParams;
@@ -824,7 +839,7 @@ int32_t tx_accelerometer(uint16_t sockPort)
 int32_t test_time_beac_sync()
 {
     /* ALWAYS DECLARE ALL VARIABLES AT TOP OF FUNCTION TO AVOID BUFFER ISSUES */
-    uint32_t channel = 11;
+    uint32_t channel = 1;
     int32_t timestamps[2][NUM_READINGS];
     int current_ts_index = 0;
     _i16 cur_channel;
@@ -846,14 +861,14 @@ int32_t test_time_beac_sync()
     int32_t counter = 0;
     uint8_t Rx_frame[MAX_RX_PACKET_SIZE];
     uint32_t send_beac_ts = 0;
-    uint32_t send_interval = 30000;
+    uint32_t send_interval = 10000;
 
     sockAddr_t sAddr;
     uint16_t entry_port = ENTRY_PORT;
     SlSockAddr_t * sa;
     int32_t tcp_sock;
     int32_t addrSize;
-    //int32_t no_bytes_count = 1000;
+    int32_t no_bytes_count = 1000;
 
     /* filling the TCP server socket address */
     sAddr.in4.sin_family = SL_AF_INET;
@@ -868,17 +883,14 @@ int32_t test_time_beac_sync()
     sa = (SlSockAddr_t*)&sAddr.in4;
     addrSize = sizeof(SlSockAddrIn6_t);
 
-    beaconRxSock = enter_tranceiver_mode(1);
+    beaconRxSock = enter_tranceiver_mode(1, channel);
 
     while(1)
     {
-//        if(no_bytes_count == 1000){
-//            UART_PRINT("1000 loops with no bytes found\n");
-//            no_bytes_count = 0;
-//        }
-//        else{
-//            no_bytes_count += 1;
-//        }
+        if(no_bytes_count == 1000){
+            UART_PRINT("1000 loops with no bytes found\n\r");
+            no_bytes_count = 0;
+        }
         //UART_PRINT("start of loop\n");
         //sleep(1);
         numBytes = sl_Recv(beaconRxSock, &Rx_frame, MAX_RX_PACKET_SIZE, 0);
@@ -890,14 +902,16 @@ int32_t test_time_beac_sync()
             {
                 UART_PRINT("[line:%d, error:%d] %s\n\r", __LINE__, numBytes,
                            SL_SOCKET_ERROR);
-                break;
+                continue;
             }
             //UART_PRINT("Beacon recieved \n\r");
             clock_gettime(CLOCK_REALTIME, &cur_time);
             parse_beacon_frame(Rx_frame, &frameInfo, 0);
         }
-        else
+        else{
+            no_bytes_count += 1;
             continue;
+        }
 
         if(last_beac_ts == frameInfo.timestamp)
             continue;
@@ -907,13 +921,14 @@ int32_t test_time_beac_sync()
         timestamps[0][current_ts_index] = (int32_t) frameInfo.timestamp;
         timestamps[1][current_ts_index] = (int32_t) (cur_time.tv_sec * 1000 + cur_time.tv_nsec / 1000000);
         current_ts_index = (current_ts_index + 1) % NUM_READINGS;
+        //UART_PRINT("Beacon_ts interval: %d\n\r", last_beac_ts-frameInfo.timestamp);
 
 
         if(send_beac_ts==0)
         {
             send_beac_ts = send_interval + (frameInfo.timestamp/1000 - (frameInfo.timestamp/1000 % send_interval));
-            UART_PRINT("%u = %u + (%u - (%u %% %u))\n\r", send_beac_ts, send_interval,frameInfo.timestamp/1000,frameInfo.timestamp/1000,
-                       send_interval);
+            //UART_PRINT("%u = %u + (%u - (%u %% %u))\n\r", send_beac_ts, send_interval,frameInfo.timestamp/1000,frameInfo.timestamp/1000,
+            //           send_interval);
         }
 
 
@@ -1016,7 +1031,7 @@ int32_t test_time_beac_sync()
             UART_PRINT("done sending time sync data and disconnected from AP"
                     ", will re-enter transceiver mode in a few seconds\n\r");
             sleep(2);
-            beaconRxSock = enter_tranceiver_mode(0);
+            beaconRxSock = enter_tranceiver_mode(0, channel);
 
             send_beac_ts += send_interval;
             UART_PRINT("next timestamp to send data at: %u\n\r", send_beac_ts);
@@ -1398,10 +1413,9 @@ int32_t ts_to_string(uint32_t timestamps[][NUM_READINGS], uint32_t current_ts_in
 }
 
 
-_i16 enter_tranceiver_mode(int32_t first_time)
+_i16 enter_tranceiver_mode(int32_t first_time, uint32_t channel)
 {
     /* ALWAYS DECLARE ALL VARIABLES AT TOP OF FUNCTION TO AVOID BUFFER ISSUES */
-    uint32_t channel = 11;
     _i16 status;
     _u32 nonBlocking = 1;
     _i16 Tx_sock;

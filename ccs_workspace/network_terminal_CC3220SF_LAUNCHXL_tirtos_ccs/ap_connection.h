@@ -29,8 +29,8 @@
 #define BUF_LEN                     (MAX_BUF_SIZE - 20)
 
 /* custom defines */
-#define AP_SSID                     "jonah_ap"
-#define AP_KEY                      "12345678"
+#define AP_SSID                     "Jonah_AP"
+#define AP_KEY                      "1234567890"
 #define ENTRY_PORT                  10000
 #define BILLION                     1000000000
 #define MESSAGE_SIZE                50
@@ -77,6 +77,6 @@ int32_t ts_to_string(uint32_t timestamps[][NUM_READINGS], uint32_t current_ts_in
 
 int32_t test_time_beac_sync();
 
-_i16 enter_tranceiver_mode();
+_i16 enter_tranceiver_mode(int32_t first_time, uint32_t channel);
 
 #endif /* AP_CONNECTION_H_ */

@@ -7,9 +7,7 @@ import socket
 import os
 
 # time of test in minutes
-TEST_LEN = 0.1
-# how often to sample in seconds
-SAMPLE_RATE = 60
+TEST_LEN = 1
 
 def create_files(uid):
     filename = uid.split(".")[-1]
