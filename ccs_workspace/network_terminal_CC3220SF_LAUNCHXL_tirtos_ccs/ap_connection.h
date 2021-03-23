@@ -34,7 +34,7 @@
 #define ENTRY_PORT                  10000
 #define BILLION                     1000000000
 #define MESSAGE_SIZE                50
-#define NUM_READINGS                300
+#define NUM_READINGS                50
 #define MAX_RX_PACKET_SIZE          1544
 #define MAX_TX_PACKET_SIZE          30000
 

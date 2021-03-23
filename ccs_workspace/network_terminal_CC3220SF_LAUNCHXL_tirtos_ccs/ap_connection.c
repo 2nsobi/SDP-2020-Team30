@@ -855,10 +855,10 @@ int32_t test_time_beac_sync()
     uint16_t beacInterval;
     frameInfo_t frameInfo;
     _i16 beaconRxSock;
-    int32_t reading[MAX_ELEM_ARR_SIZE];
+    //int32_t reading[MAX_ELEM_ARR_SIZE];
     struct timespec cur_time;
     uint32_t last_beac_ts = 0;
-    int32_t counter = 0;
+    //int32_t counter = 0;
     uint8_t Rx_frame[MAX_RX_PACKET_SIZE];
     uint32_t send_beac_ts = 0;
     uint32_t send_interval = 10000;

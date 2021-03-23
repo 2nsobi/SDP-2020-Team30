@@ -31,7 +31,7 @@ def setup():
 
     # create experiment folder
     date = str_date()
-    formatted_date = str(date).replace(" ", "_").split(".")[0].replace(":", ";")
+    formatted_date = "2_boards_" + str(date).replace(" ", "_").split(".")[0].replace(":", ";")
     ROOT_FOLDER = os.path.join(os.getcwd(), "timestamp_data", formatted_date)
     os.mkdir(ROOT_FOLDER)
 
