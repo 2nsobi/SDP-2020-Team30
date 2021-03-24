@@ -36,7 +36,7 @@
 #define MESSAGE_SIZE                50
 #define NUM_READINGS                50
 #define MAX_RX_PACKET_SIZE          1544
-#define MAX_TX_PACKET_SIZE          30000
+#define MAX_TX_PACKET_SIZE          100000
 
 typedef struct
 {
@@ -57,6 +57,9 @@ typedef struct
 
 int32_t connectToAP();
 
+void load_cell_test(ADC_Handle *adc0);
+int32_t time_beacons_and_load_cell(ADC_Handle *adc0);
+
 uint16_t get_port_for_data_tx();
 
 int32_t transmit_data_forever_test(uint16_t sockPort);
@@ -73,7 +76,7 @@ int32_t tx_accelerometer(uint16_t sockPort);
 
 int32_t q_to_string(queue_t * q, uint8_t * buf);
 
-int32_t ts_to_string(uint32_t timestamps[][NUM_READINGS], uint32_t current_ts_index, uint8_t * buf);
+int32_t ts_to_string(uint32_t timestamps[][NUM_READINGS], float load_cell_readings[], uint32_t current_ts_index, uint8_t * buf);
 
 int32_t test_time_beac_sync();
 

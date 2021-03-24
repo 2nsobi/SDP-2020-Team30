@@ -1941,7 +1941,36 @@ void * mainThread(void *arg)
 
     //tx_accelerometer(0);
 
-    test_time_beac_sync();
+
+
+//--------------------------------------------------------------------------------------------------------------------------------------------------
+//ADC SETUP
+
+    ADC_Handle   adc0;
+    ADC_Params   params;
+
+    ADC_init();
+    ADC_Params_init(&params);
+
+    adc0 = ADC_open(CONFIG_ADC_0, &params);
+    if (adc0 == NULL) {
+        UART_PRINT("Error initializing CONFIG_ADC_0\n");
+        return(-1);
+    }
+    UART_PRINT("Successfully initialized CONFIG_ADC_0\n");
+
+    //load_cell_test(&adc0);
+    time_beacons_and_load_cell(&adc0);
+
+
+    ADC_close(adc0);
+
+
+//--------------------------------------------------------------------------------------------------------------------------------------------------
+
+
+
+    //test_time_beac_sync();
 
     /*
      * Calling UART handling method which serves as the application main loop.

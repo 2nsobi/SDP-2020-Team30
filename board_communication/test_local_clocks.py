@@ -11,7 +11,7 @@ LINUX_HOTSPOT = True
 ENTRY_PORT = 10000
 
 # time of test in minutes
-TEST_LEN = 2
+TEST_LEN = 0.5
 
 ROOT_FOLDER = ""
 
@@ -31,7 +31,7 @@ def setup():
 
     # create experiment folder
     date = str_date()
-    formatted_date = "2_boards_" + str(date).replace(" ", "_").split(".")[0].replace(":", ";")
+    formatted_date = str(date).replace(" ", "_").split(".")[0].replace(":", ";")
     ROOT_FOLDER = os.path.join(os.getcwd(), "timestamp_data", formatted_date)
     os.mkdir(ROOT_FOLDER)
 
@@ -43,15 +43,21 @@ def setup():
     logging.getLogger("experiment_log").addHandler(logging.StreamHandler())
 
 
-def create_files(uid):
+def create_files(uid, store_folder = None, load_cell = None):
     global ROOT_FOLDER
     # uid: client IP address
     ip_last3 = uid.split(".")[-1]
     filename = ip_last3 + ".txt"
-    board_file = os.path.join(os.getcwd(), "timestamp_data", ROOT_FOLDER, filename)
+    if store_folder is None:
+        board_file = os.path.join(os.getcwd(), "timestamp_data", ROOT_FOLDER, filename)
+    else:
+        board_file = os.path.join(os.getcwd(), "timestamp_data", store_folder, filename)
     if not os.path.exists(board_file):
         f = open(board_file, 'a')
-        f.write("beacon_timestamp,local_timestamp")
+        if load_cell is not None:
+            f.write("beacon_timestamp,local_timestamp,load_cell_reading")
+        else:
+            f.write("beacon_timestamp,local_timestamp")
         f.close()
     return board_file
 
@@ -109,33 +115,52 @@ def linux(end_time, linux_hotspot = LINUX_HOTSPOT):
             ap.stop()
 
 
-def parse_mcu_msg(data, uid):
+def parse_mcu_msg(data, uid, store_folder = None):
+    # store_folder is an option used to recreate the board txt files from an experiment, no printing will occur
     ip_addr = uid[0]
     data = str(data)
     data = data.replace("b'", "")
     data = data.replace("'", "")
     data = data.split("|")
+    logger.info("Length of data recieved:\t{}".format(len(data)))
     try:
         for reading in data:
+            load_cell_reading = None
             reading = reading.split(",")
-            if len(reading)<2:
+
+            elements = len(reading)
+
+            if elements<2:
                 continue
             beacon_ts = reading[0]
             local_ts = reading[1]
             if int(beacon_ts) == 3200171710 or int (local_ts) == 3200171710:
                 continue
-            logger.info("Recieved from board {}:\n\tBeacon timestamp:\t{}\n\tLocal timestamp:\t{}".format(ip_addr, beacon_ts,
+
+            #check length of readings
+            if elements == 3:
+                load_cell_reading = reading[2]
+
+            if store_folder is None:
+                logger.info("Recieved from board {}:\n\tBeacon timestamp:\t{}\n\tLocal timestamp:\t{}".format(ip_addr,
+                                                                                                              beacon_ts,
                                                                                                     local_ts))
-            store_data(ip_addr, beacon_ts, local_ts)
+            store_data(ip_addr, beacon_ts, local_ts, load_cell = load_cell_reading, store_folder = store_folder)
     except Exception as e:
-        logger.info("Unexpected data format, exception:")
-        logger.info(e)
+        if store_folder is None:
+            logger.info("Unexpected data format, exception:")
+            logger.info(e)
+        else:
+            print("unexpected data format")
 
 
-def store_data(uid, beacon_timestamp, local_time):
-    board_file = create_files(uid)
+def store_data(uid, beacon_timestamp, local_time, load_cell = None, store_folder = None):
+    board_file = create_files(uid, store_folder = store_folder, load_cell = load_cell)
     f = open(os.path.join(os.getcwd(), "timestamp_data", board_file), 'a')
-    f.write('\n' + str(beacon_timestamp) + ',' + str(local_time))
+    if load_cell is not None:
+        f.write('\n' + str(beacon_timestamp) + ',' + str(local_time) + ',' + str(load_cell))
+    else:
+        f.write('\n' + str(beacon_timestamp) + ',' + str(local_time))
     f.close()
 
 
