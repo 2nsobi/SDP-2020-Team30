@@ -10,7 +10,6 @@ def retrive_2_board_data(folder_name):
     # beacon timestamps and the values are the local timestamps (this will get rid of duplicate readings)
     folder_path = os.path.join(os.getcwd(), "timestamp_data", folder_name)
     files = os.listdir(folder_path)
-    files.remove("laptop.log")
     return parse_txt_file(os.path.join(folder_path, files[0])), parse_txt_file(os.path.join(folder_path, files[1]))
 
 
@@ -79,8 +78,8 @@ def total_drift(combined_ts, verbose = True, graph_drift = True, graph_elapsed =
     if verbose:
         print("Local drift in ms:\t{}".format(local_drift_ms))
 
-    clock1_elapsed = [combined_ts[x][1] - clock1_start for x in beacons]
-    clock2_elapsed = [combined_ts[x][2] - clock2_start for x in beacons]
+    clock1_elapsed = [(combined_ts[x][1] - clock1_start)/1000 for x in beacons]
+    clock2_elapsed = [(combined_ts[x][2] - clock2_start)/1000 for x in beacons]
     drift_over_time = [c1 - c2 for c1, c2 in zip(clock1_elapsed, clock2_elapsed)]
     beacons_s = [(i - first_beacon) / (1000000 * 1.024) for i in beacons]  # in seconds
 
@@ -93,6 +92,9 @@ def total_drift(combined_ts, verbose = True, graph_drift = True, graph_elapsed =
     if graph_elapsed:
         plt.plot(beacons_s, clock1_elapsed, 'r', label = "clock1")
         plt.plot(beacons_s, clock2_elapsed, 'b', label = "clock2")
+        plt.xlabel("Elapsed time in seconds based on beacon timestamps")
+        plt.ylabel("Elapsed time in seconds on local clocks")
+        plt.title("Beacon Timestamps vs Local Clock readings over {} minutes".format(experiment_time_min))
         plt.legend()
         plt.show()
 
@@ -153,7 +155,10 @@ def drift_over_x_beacons(combined_ts, num_beacons = None, absolute = True):
     print("90% of drift is less than {}".format(drift_between[ninety]))
 
     plt.hist(drift_between, bins=30)
-    plt.title("Drift between two CC3220SF local clocks over 1 100ms beacon interval,\n{} trials".format(trials))
+    if absolute:
+        plt.title("Absolute Value of Drift between two CC3220SF local clocks over 1 100ms beacon interval,\n{} trials".format(trials))
+    else:
+        plt.title("Relative Drift between two CC3220SF local clocks over 1 100ms beacon interval,\n{} trials".format(trials))
     plt.xlabel("Drift in ms")
     plt.ylabel("frequency")
     plt.show()
@@ -188,6 +193,7 @@ if __name__ == '__main__':
     folder_name = "2_boards_2021-03-23_14;33;16"
     a, b = retrive_2_board_data(folder_name)
     c = combine_board_data(a, b)
-    drift_over_x_beacons(c)
     total_drift(c, graph_elapsed=True)
+    drift_over_x_beacons(c)
+    drift_over_x_beacons(c, absolute=False)
     #recover_experiment_from_log(folder_name)
