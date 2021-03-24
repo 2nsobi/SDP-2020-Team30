@@ -21,6 +21,8 @@
 #include "ap_connection.h"
 #include "queue.h"
 
+#include <ti/sysbios/knl/Task.h>
+
 /* Application defines */
 #define WLAN_EVENT_TOUT             (10000)
 #define TIMEOUT_SEM                 (-1)
@@ -35,9 +37,9 @@
 #define MESSAGE_SIZE                50
 #define NUM_READINGS                300
 #define MAX_RX_PACKET_SIZE          1544
-#define MAX_TX_PACKET_SIZE          30000
+#define MAX_TX_PACKET_SIZE          3000
 #define MAC_FILTER_ARGS             " -f S_MAC -v 5A:FB:84:5D:70:05 -e not_equals -a drop -m L1"
-#define BEACON_CHANNEL              1
+#define BEACON_CHANNEL              11
 
 
 /* for on-board accelerometer */
@@ -54,16 +56,20 @@ uint8_t Tx_data[MAX_TX_PACKET_SIZE];
 
 int32_t connectToAP()
 {
-    int32_t ret = 0;
+    int32_t ret;
     ConnectCmd_t ConnectParams;
-
-    memset(&ConnectParams, 0x0, sizeof(ConnectCmd_t));
 
     uint8_t ssid[] = AP_SSID;
     uint8_t key[] = AP_KEY;
     SlWlanSecParams_t secParams = { .Type = SL_WLAN_SEC_TYPE_WPA_WPA2,
                                     .Key = (signed char *)key,
                                     .KeyLen = strlen((const char *)key) };
+
+    uint32_t connected_to_ap;
+
+    connected_to_ap = 0;
+    ret = 0;
+    memset(&ConnectParams, 0x0, sizeof(ConnectCmd_t));
 
     ConnectParams.ssid = ssid;
     ConnectParams.secParams = secParams;
@@ -87,8 +93,6 @@ int32_t connectToAP()
         /* Here we are in STA mode */
         app_CB.Role = ret;
     }
-
-    uint32_t connected_to_ap = 0;
 
     while(!connected_to_ap)
     {
@@ -838,21 +842,22 @@ int32_t tx_accelerometer(uint16_t sockPort)
 int32_t test_time_beac_sync()
 {
     /* ALWAYS DECLARE ALL VARIABLES AT TOP OF FUNCTION TO AVOID BUFFER ISSUES */
-    _i16 cur_channel;
-    _i16 numBytes;
-    _i16 status;
+    int16_t cur_channel;
+    int16_t numBytes;
+    int16_t status;
     int32_t sent_bytes;
     int32_t bytes_to_send;
     int32_t buflen;
     uint32_t i=0;
     uint32_t j=0;
-    _u32 nonBlocking = 1;
+    uint32_t nonBlocking = 1;
     uint32_t timestamp = 0;
     uint16_t beacInterval;
     frameInfo_t frameInfo;
-    _i16 beaconRxSock;
+    int32_t beaconRxSock;
+    int32_t backup;
     queue_t q;
-    int32_t reading[MAX_ELEM_ARR_SIZE];
+//    int32_t reading[MAX_ELEM_ARR_SIZE];
     struct timespec cur_time;
     uint32_t last_beac_ts = 0;
     int32_t counter = 0;
@@ -883,14 +888,22 @@ int32_t test_time_beac_sync()
     addrSize = sizeof(SlSockAddrIn6_t);
 
     beaconRxSock = enter_tranceiver_mode(1);
+    UART_PRINT("beaconRxSock set to %i in test_time_beac_sync()\n\r", beaconRxSock);
 
 //    initQueue(&q);
     while(1)
     {
+        backup = beaconRxSock;
         numBytes = sl_Recv(beaconRxSock, &Rx_frame, MAX_RX_PACKET_SIZE, 0);
         if(numBytes != SL_ERROR_BSD_EAGAIN)
         {
-            if(numBytes < 0)
+            if(numBytes == SL_ERROR_BSD_INEXE){
+                UART_PRINT("[line:%d, error:%d] %s, sleeping for 5 secs\n\r", __LINE__, numBytes,
+                                           SL_SOCKET_ERROR);
+                sleep(5);
+                continue;
+            }
+            else if(numBytes < 0)
             {
                 UART_PRINT("[line:%d, error:%d] %s\n\r", __LINE__, numBytes,
                            SL_SOCKET_ERROR);
@@ -940,6 +953,9 @@ int32_t test_time_beac_sync()
 //            UART_PRINT("%i: {%u, %u, %i, %i, %i}\n\r", i, q.arr[qIndex(&q,i)][0], q.arr[qIndex(&q,i)][1],
 //                       q.arr[qIndex(&q,i)][2], q.arr[qIndex(&q,i)][3], q.arr[qIndex(&q,i)][4]);
 
+//        status = sl_WlanDisconnect();
+//        ASSERT_ON_ERROR(status, WLAN_ERROR);
+
 //        if(counter / 5000.0f > 1)
         if(frameInfo.timestamp/1000 >= send_beac_ts)
         {
@@ -949,8 +965,10 @@ int32_t test_time_beac_sync()
             // send data
             // re-enable tranceiver mode
 
+            UART_PRINT("about to close socket %i\n\r",beaconRxSock);
             status = sl_Close(beaconRxSock);
             ASSERT_ON_ERROR(status, SL_SOCKET_ERROR);
+            UART_PRINT("closing socket %i\n\r",beaconRxSock);
 
             UART_PRINT("its been %u ms (AP timestamp: %u ms), time to send time sync data, "
                     "will connect to AP and send in a few seconds\n\r", send_interval, frameInfo.timestamp/1000);
@@ -969,8 +987,10 @@ int32_t test_time_beac_sync()
             /* Get socket descriptor - this would be the
              * socket descriptor for the TCP session.
              */
+            UART_PRINT("sa->sa_family: %u\n\r", sa->sa_family);
             tcp_sock = sl_Socket(sa->sa_family, SL_SOCK_STREAM, TCP_PROTOCOL_FLAGS);
             ASSERT_ON_ERROR(tcp_sock, SL_SOCKET_ERROR);
+            UART_PRINT("created socket %i\n\r",tcp_sock);
 
             status = -1;
 
@@ -1000,29 +1020,39 @@ int32_t test_time_beac_sync()
 
             sprintf(Tx_data, "%u %u", frameInfo.timestamp/1000, cur_time.tv_sec * 1000 + cur_time.tv_nsec / 1000000);
 
-            sent_bytes = 0;
-            bytes_to_send = strlen(Tx_data);
-            while(sent_bytes < bytes_to_send)
+//            sent_bytes = 0;
+////            bytes_to_send = strlen(Tx_data);
+//            bytes_to_send = MAX_TX_PACKET_SIZE;
+//            while(sent_bytes < bytes_to_send)
+//            {
+//                if(bytes_to_send - sent_bytes >= bytes_to_send)
+//                {
+//                    buflen = bytes_to_send;
+//                }
+//                else
+//                {
+//                    buflen = bytes_to_send - sent_bytes;
+//                }
+//
+//                status = sl_Send(tcp_sock, &Tx_data, buflen, 0);
+//                if(status < 0)
+//                {
+//                    UART_PRINT("[line:%d, error:%d] %s\n\r", __LINE__, status,
+//                               SL_SOCKET_ERROR);
+//                    break;
+//                }
+//                sent_bytes += status;
+//            }
+            status = sl_Send(tcp_sock, &Tx_data, MAX_TX_PACKET_SIZE, 0);
+            if(status < 0)
             {
-                if(bytes_to_send - sent_bytes >= bytes_to_send)
-                {
-                    buflen = bytes_to_send;
-                }
-                else
-                {
-                    buflen = bytes_to_send - sent_bytes;
-                }
-
-                status = sl_Send(tcp_sock, &Tx_data, buflen, 0);
-                if(status < 0)
-                {
-                    UART_PRINT("[line:%d, error:%d] %s\n\r", __LINE__, status,
-                               SL_SOCKET_ERROR);
-                    break;
-                }
-                sent_bytes += status;
+                UART_PRINT("[line:%d, error:%d] %s\n\r", __LINE__, status,
+                           SL_SOCKET_ERROR);
+                break;
             }
+            UART_PRINT("sent %i bytes of data\n\r", status);
 
+            UART_PRINT("closing socket %i\n\r", tcp_sock);
             status = sl_Close(tcp_sock);
             ASSERT_ON_ERROR(status, SL_SOCKET_ERROR);
 
@@ -1043,6 +1073,7 @@ int32_t test_time_beac_sync()
 
             sleep(2);
             beaconRxSock = enter_tranceiver_mode(0);
+            UART_PRINT("beaconRxSock set to %i in test_time_beac_sync()\n\r", beaconRxSock);
 
             send_beac_ts += send_interval;
             UART_PRINT("next timestamp to send data at: %u\n\r", send_beac_ts);
@@ -1050,6 +1081,12 @@ int32_t test_time_beac_sync()
         else
         {
             UART_PRINT("%u\n\r", frameInfo.timestamp/1000);
+            UART_PRINT("beaconRxSock: %i\n\r", beaconRxSock);
+            UART_PRINT("backup: %i\n\r", backup);
+            UART_PRINT("sa->sa_family: %u\n\r", sa->sa_family);
+
+            if(backup!=beaconRxSock)
+                beaconRxSock = backup;
         }
 //        else
 //        {
@@ -1400,37 +1437,37 @@ int32_t q_to_string(queue_t * q, uint8_t * buf)
     return 0;
 }
 
-_i16 enter_tranceiver_mode(int32_t apply_filters)
+int32_t enter_tranceiver_mode(int32_t initialize)
 {
     /* ALWAYS DECLARE ALL VARIABLES AT TOP OF FUNCTION TO AVOID BUFFER ISSUES */
     uint32_t channel = BEACON_CHANNEL;
-    _i16 status;
-    _u32 nonBlocking = 1;
-    _i16 Tx_sock;
+    int16_t status;
+    uint32_t nonBlocking = 1;
+    int32_t Tx_sock;
 
-    if(apply_filters)
+    if(initialize)
     {
         uint8_t createFilterArgs1[] = " -f FRAME_TYPE -v management -e not_equals -a drop -m L1";
         uint8_t createFilterArgs2[] = MAC_FILTER_ARGS;
         uint8_t enableFilterArgs[] = "";
 
+        /* To use transceiver mode, the device must be set in STA role, be disconnected, and have disabled
+            previous connection policies that might try to automatically connect to an AP. */
+        status = sl_WlanPolicySet(SL_WLAN_POLICY_CONNECTION, SL_WLAN_CONNECTION_POLICY(0, 0, 0, 0), NULL, 0);
+        if( status )
+        {
+            UART_PRINT("[line:%d, error:%d]\n\r", __LINE__, status);
+            return(-1);
+        }
+
         status = cmdCreateFilterCallback(createFilterArgs1);
         ASSERT_ON_ERROR(status, WLAN_ERROR);
 
-        status = cmdCreateFilterCallback(createFilterArgs2);
+        status = cmdCreateFilterCallback(MAC_FILTER_ARGS);
         ASSERT_ON_ERROR(status, WLAN_ERROR);
 
         status = cmdEnableFilterCallback(enableFilterArgs);
         ASSERT_ON_ERROR(status, WLAN_ERROR);
-    }
-
-    /* To use transceiver mode, the device must be set in STA role, be disconnected, and have disabled
-        previous connection policies that might try to automatically connect to an AP. */
-    status = sl_WlanPolicySet(SL_WLAN_POLICY_CONNECTION, SL_WLAN_CONNECTION_POLICY(0, 0, 0, 0), NULL, 0);
-    if( status )
-    {
-        UART_PRINT("[line:%d, error:%d]\n\r", __LINE__, status);
-        return(-1);
     }
 
     Tx_sock = sl_Socket(SL_AF_RF, SL_SOCK_DGRAM, channel);
@@ -1445,5 +1482,6 @@ _i16 enter_tranceiver_mode(int32_t apply_filters)
         return(-1);
     }
 
+    UART_PRINT("created socket %i in enter_tranceiver_mode()\n\r", Tx_sock);
     return Tx_sock;
 }
