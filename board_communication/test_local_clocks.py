@@ -11,7 +11,10 @@ LINUX_HOTSPOT = True
 ENTRY_PORT = 10000
 
 # time of test in minutes
-TEST_LEN = 0.5
+TEST_LEN = 2
+
+# whether or not to save data into text files
+SAVE = False
 
 ROOT_FOLDER = ""
 
@@ -209,15 +212,15 @@ def run_experiment():
         linux(end_time)
 
 
-def cleanup():
-    # deletes folder timestamp data and files inside it
-    folder = os.path.join(os.getcwd(), "timestamp_data")
+def cleanup(folder):
+    # deletes root folder and files inside it
     files = os.listdir(folder)
     for file in files:
         filepath = os.path.join(folder, file)
         os.remove(filepath)
-    os.remove(folder)
+    os.rmdir(folder)
 
 if __name__ == '__main__':
     run_experiment()
-    #cleanup()
+    if not SAVE:
+        cleanup(ROOT_FOLDER)

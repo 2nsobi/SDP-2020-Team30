@@ -59,6 +59,7 @@ int32_t connectToAP();
 
 void load_cell_test(ADC_Handle *adc0);
 int32_t time_beacons_and_load_cell(ADC_Handle *adc0);
+int32_t time_beacons_and_load_cell_no_print(ADC_Handle *adc0);
 
 uint16_t get_port_for_data_tx();
 
@@ -70,7 +71,7 @@ int32_t time_drift_test_l3(uint16_t sockPort);
 
 int32_t time_drift_test_l2();
 
-int32_t parse_beacon_frame(uint8_t * Rx_frame, frameInfo_t * frameInfo, uint8_t printInfo);
+_u32 parse_beacon_frame(uint8_t * Rx_frame, frameInfo_t * frameInfo, uint8_t printInfo);
 
 int32_t tx_accelerometer(uint16_t sockPort);
 
