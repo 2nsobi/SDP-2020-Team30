@@ -142,3 +142,4 @@ cython_debug/
 
 # local folders
 /my_tests
+/.metadata/

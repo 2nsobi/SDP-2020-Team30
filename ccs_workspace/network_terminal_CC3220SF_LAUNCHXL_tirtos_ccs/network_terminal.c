@@ -1976,7 +1976,7 @@ void * mainThread(void *arg)
      * Calling UART handling method which serves as the application main loop.
      * Note that this function doesn't return.
      */
-    //RetVal = cmd_prompt(NULL);
+    RetVal = cmd_prompt(NULL);
 
     UART_PRINT("Exiting Program");
 

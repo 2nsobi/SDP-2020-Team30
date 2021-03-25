@@ -11,7 +11,7 @@ LINUX_HOTSPOT = True
 ENTRY_PORT = 10000
 
 # time of test in minutes
-TEST_LEN = 0.5
+TEST_LEN = 10
 
 ROOT_FOLDER = ""
 
@@ -102,7 +102,11 @@ def linux(end_time, linux_hotspot = LINUX_HOTSPOT):
             connection, client_address = entry_socket.accept()
 
             logger.info(f'*** connection from {client_address} ***')
-            data = connection.recv(100000)
+            data = connection.recv(1460)
+            for i in range(100):
+                data += connection.recv(1460)
+            print(data)
+            print(len(data))
 
             logger.info(data)
             logger.info("It's been {} seconds since last connection".format(current_time - last_time))
