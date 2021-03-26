@@ -78,6 +78,10 @@ def transform_axis(local_ts, beacon_ts):
     # returns an array that is the transformed local_ts onto the beacon_ts
     # ***Note*** some of the end of the local
 
+    if len(local_ts) == 0 or len(beacon_ts) == 0:
+        print("Length of array is 0, exiting")
+        exit(0)
+
     # make sure inputs are floats
     local_ts = [float(x) for x in local_ts]
     beacon_ts = [float(x) for x in beacon_ts]
@@ -138,4 +142,4 @@ adc = [80, 80, 80, 95, 85]
 
 base = {"adc": adc, "local_ts" : local_ts, "beacon_ts": beacon_ts}
 
-plot_tcp_data(wrist, base)
+#plot_tcp_data(wrist, base)

@@ -11,7 +11,7 @@ LINUX_HOTSPOT = True
 ENTRY_PORT = 10000
 
 # time of test in minutes
-TEST_LEN = 10
+TEST_LEN = 2
 
 ROOT_FOLDER = ""
 

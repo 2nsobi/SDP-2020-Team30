@@ -29,8 +29,8 @@
 #define BUF_LEN                     (MAX_BUF_SIZE - 20)
 
 /* custom defines */
-#define AP_SSID                     "test_ap_1"
-#define AP_KEY                      "12345678"
+#define AP_SSID                     "Jonah_AP"
+#define AP_KEY                      "1234567890"
 #define ENTRY_PORT                  10000
 #define BILLION                     1000000000
 #define MESSAGE_SIZE                50
@@ -60,6 +60,8 @@ int32_t connectToAP();
 
 void load_cell_test(ADC_Handle *adc0);
 int32_t time_beacons_and_load_cell(ADC_Handle *adc0);
+int32_t time_beacons_and_accelerometer(ADC_Handle *adc0, ADC_Handle *adc1, ADC_Handle *adc2);
+int32_t accel_to_string(uint32_t timestamps[][NUM_READINGS], float accel_readings[][NUM_READINGS], uint32_t current_ts_index, uint8_t * buf);
 
 uint16_t get_port_for_data_tx();
 

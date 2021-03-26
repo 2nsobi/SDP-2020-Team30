@@ -12,6 +12,7 @@ ENTRY_PORT = 10000
 
 #whether or not to save experiment
 SAVE = False
+LINUX_HOTSPOT = True
 
 ROOT_FOLDER = ""
 
@@ -74,8 +75,12 @@ def linux(plot = True):
     readings = {"wrist":{}, "base":{}}
 
     try:
-        ap = setup_ap()
-        server_ip = ap.ip
+        if LINUX_HOTSPOT:
+            server_ip = "10.42.0.1"
+            print("Server running at {}".format(server_ip))
+        else:
+            ap = setup_ap()
+            server_ip = ap.ip
         ENTRY_PORT = 10000
 
         entry_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  # Create a TCP/IP socket
@@ -130,7 +135,7 @@ def assemble_data_for_plot(data):
                 continue
             beacon_ts = reading[0]
             local_ts = reading[1]
-            if int(beacon_ts) == 3200171710 or int(local_ts) == 3200171710:
+            if int(beacon_ts) == 3200171710 or int(local_ts) == 3200171710 or int(beacon_ts) == 0 or int(local_ts) == 0:
                 continue
             if len(reading) == 3:  # from the base module
                 load_cell = reading[3]
