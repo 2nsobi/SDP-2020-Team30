@@ -1960,8 +1960,9 @@ void * mainThread(void *arg)
     UART_PRINT("Successfully initialized CONFIG_ADC_0\n");
 
     //load_cell_test(&adc0);
-    time_beacons_and_load_cell_no_print(&adc0);
+//    time_beacons_and_load_cell_no_print(&adc0);
 //    time_beacons_and_load_cell(&adc0);
+    test_beacon_recv_percentage();
 
 
     ADC_close(adc0);

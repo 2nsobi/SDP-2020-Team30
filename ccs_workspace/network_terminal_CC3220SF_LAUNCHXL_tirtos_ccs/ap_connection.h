@@ -34,7 +34,7 @@
 #define ENTRY_PORT                  10000
 #define BILLION                     1000000000
 #define MESSAGE_SIZE                50
-#define NUM_READINGS                50
+#define NUM_READINGS                1000
 #define MAX_RX_PACKET_SIZE          1544
 #define MAX_TX_PACKET_SIZE          100000
 
@@ -60,6 +60,8 @@ int32_t connectToAP();
 void load_cell_test(ADC_Handle *adc0);
 int32_t time_beacons_and_load_cell(ADC_Handle *adc0);
 int32_t time_beacons_and_load_cell_no_print(ADC_Handle *adc0);
+void beacons_to_string(uint32_t timestamps[], uint32_t current_ts_index, uint8_t *buf);
+void test_beacon_recv_percentage();
 
 uint16_t get_port_for_data_tx();
 

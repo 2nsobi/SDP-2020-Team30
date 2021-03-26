@@ -1368,6 +1368,147 @@ int32_t time_beacons_and_load_cell_no_print(ADC_Handle *adc0)
 
 
 
+void test_beacon_recv_percentage(){
+
+    //recieves <NUM_READINGS> beacons and then sends an array of the beacon timestamps to the laptop, only does this once
+    /* ALWAYS DECLARE ALL VARIABLES AT TOP OF FUNCTION TO AVOID BUFFER ISSUES */
+    uint32_t channel = 1;
+    uint32_t beacon_ts[NUM_READINGS];
+    int current_ts_index = 0;
+    _i16 cur_channel;
+    _i16 numBytes;
+    _i16 status;
+    int32_t sent_bytes;
+    int32_t bytes_to_send;
+    int32_t buflen;
+    _u32 nonBlocking = 1;
+    frameInfo_t frameInfo;
+    _i16 beaconRxSock;
+    uint32_t last_beac_ts = 0;
+    uint8_t Rx_frame[MAX_RX_PACKET_SIZE];
+    int i = 0;
+
+    sockAddr_t sAddr;
+    uint16_t entry_port = ENTRY_PORT;
+    SlSockAddr_t * sa;
+    int32_t tcp_sock;
+    int32_t addrSize;
+
+    /* filling the TCP server socket address */
+    sAddr.in4.sin_family = SL_AF_INET;
+
+    /* Since this is the client's side,
+     * we must know beforehand the IP address
+     * and the port of the server wer'e trying to connect.
+     */
+    sAddr.in4.sin_port = sl_Htons((unsigned short)entry_port);
+    sAddr.in4.sin_addr.s_addr = 0;
+
+    sa = (SlSockAddr_t*)&sAddr.in4;
+    addrSize = sizeof(SlSockAddrIn6_t);
+
+    beaconRxSock = enter_tranceiver_mode(1, channel);
+
+    for(i = 0; i< NUM_READINGS; i++){
+
+        numBytes = sl_Recv(beaconRxSock, &Rx_frame, MAX_RX_PACKET_SIZE, 0);
+
+        if(numBytes != SL_ERROR_BSD_EAGAIN)
+        {
+            if(numBytes < 0)
+            {
+                UART_PRINT("[line:%d, error:%d] %s\n\r", __LINE__, numBytes,
+                           SL_SOCKET_ERROR);
+                continue;
+            }
+            parse_beacon_frame(Rx_frame, &frameInfo, 0);
+        }
+
+        if(last_beac_ts == frameInfo.timestamp)
+            continue;
+
+        beacon_ts[i] = frameInfo.timestamp;
+        UART_PRINT("Beacon_ts: %u\n\r", frameInfo.timestamp);
+    }
+
+
+    // stop transeiver mode
+    // connnect to accept point
+    // connect to tcp socket
+    // send data
+
+    UART_PRINT("Exiting tranciever mode\n\r");
+    status = sl_Close(beaconRxSock);
+    ASSERT_ON_ERROR(status, SL_SOCKET_ERROR);
+
+    sleep(2);
+
+    status = connectToAP();
+    if(status < 0)
+    {
+        UART_PRINT("could not connect to AP\n\r");
+        return -1;
+    }
+
+    if(!sAddr.in4.sin_addr.s_addr)
+        sAddr.in4.sin_addr.s_addr = sl_Htonl((unsigned int)app_CB.CON_CB.GatewayIP);
+
+    /* Get socket descriptor - this would be the
+     * socket descriptor for the TCP session.
+     */
+    tcp_sock = sl_Socket(sa->sa_family, SL_SOCK_STREAM, TCP_PROTOCOL_FLAGS);
+    ASSERT_ON_ERROR(tcp_sock, SL_SOCKET_ERROR);
+
+    status = -1;
+
+    while(status < 0)
+    {
+        /* Calling 'sl_Connect' followed by server's
+         * 'sl_Accept' would start session with
+         * the TCP server. */
+        status = sl_Connect(tcp_sock, sa, addrSize);
+        if((status == SL_ERROR_BSD_EALREADY)&& (TRUE == nonBlocking))
+        {
+            sleep(1);
+            continue;
+        }
+        else if(status < 0)
+        {
+            UART_PRINT("[line:%d, error:%d] %s\n\r", __LINE__, status,
+                       SL_SOCKET_ERROR);
+            sl_Close(tcp_sock);
+            UART_PRINT("No TCP socket to connect to, terminating program\n");
+            return(-1);
+        }
+        break;
+    }
+
+    memset(Tx_data, 0, MAX_TX_PACKET_SIZE);
+    beacons_to_string(beacon_ts, current_ts_index, Tx_data);
+    sent_bytes = 0;
+    bytes_to_send = strlen(Tx_data);
+
+    status = sl_Send(tcp_sock, &Tx_data, strlen(Tx_data), 0);
+    UART_PRINT("bytes sent: %i\n\r",status);
+    UART_PRINT("String length of TX data: %i\n\r", strlen(Tx_data));
+
+    status = sl_Close(tcp_sock);
+    ASSERT_ON_ERROR(status, SL_SOCKET_ERROR);
+
+    /* After calling sl_WlanDisconnect(),
+     *    we expect WLAN disconnect asynchronous event.
+     * Cleaning the former connection information from
+     * the application control block
+     * is handled in that event handler,
+     * as well as getting the disconnect reason.
+     */
+    sleep(2);
+    status = sl_WlanDisconnect();
+    ASSERT_ON_ERROR(status, WLAN_ERROR);
+
+    UART_PRINT("done sending time sync data and disconnected from AP\n\r");
+    return;
+}
 
 
 
@@ -1966,11 +2107,33 @@ int32_t ts_to_string(uint32_t timestamps[][NUM_READINGS], float load_cell_readin
 }
 
 
+
+void beacons_to_string(uint32_t timestamps[], uint32_t current_ts_index, uint8_t *buf){
+
+    int32_t i =0;
+    int32_t buf_i = 0;
+    uint8_t reading[15]; // max reading to string length is 24: "(4294967296,4294967296,4294967296|\'0')"
+
+    for(i=current_ts_index; i<NUM_READINGS; i++){
+        sprintf(reading, "%u|", timestamps[i]);
+        strcpy(&buf[buf_i], reading);
+        buf_i += strlen(reading);
+    }
+
+    for(i=0; i<current_ts_index; i++){
+        sprintf(reading, "%u|", timestamps[i]);
+        strcpy(&buf[buf_i], reading);
+        buf_i += strlen(reading);
+    }
+
+}
+
+
 _i16 enter_tranceiver_mode(int32_t first_time, uint32_t channel)
 {
     /* ALWAYS DECLARE ALL VARIABLES AT TOP OF FUNCTION TO AVOID BUFFER ISSUES */
     _i16 status;
-    _u32 nonBlocking = 1;
+    _u32 nonBlocking = 0;
     _i16 Tx_sock;
     uint8_t enableFilterArgs[] = "";
 

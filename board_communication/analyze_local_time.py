@@ -10,15 +10,20 @@ def retrive_2_board_data(folder_name):
     # beacon timestamps and the values are the local timestamps (this will get rid of duplicate readings)
     folder_path = os.path.join(os.getcwd(), "timestamp_data", folder_name)
     files = os.listdir(folder_path)
+    for f in files:
+        if f.find(".log")>=0:
+            files.remove(f)
     return parse_txt_file(os.path.join(folder_path, files[0])), parse_txt_file(os.path.join(folder_path, files[1]))
 
 
-def parse_txt_file(filepath):
+def parse_txt_file(filepath, beacon_test = False):
     # takes a path to a board txt file where the format is <beacon timestamp>,<local timestamp> on each line
     # returns a dict where the keys are the beacon timestamps and the values are the local timestamps, should get rid
     # of duplicate entries
+    # if beacon test is true, returns an array of the beacon timestamps
 
     timestamps = {}
+    beacons = []
 
     f = open(filepath, 'r+')
     data = f.readlines()
@@ -27,12 +32,15 @@ def parse_txt_file(filepath):
     for line in data:
         line = line.replace("\n", "").split(",")
         beacon_ts = int(line[0])
-        if beacon_ts == 0:
+        beacons.append(beacon_ts)
+        if beacon_ts == 0 or beacon_test:
             continue
         local_ts = int(line[1])
         timestamps[beacon_ts] = local_ts
 
     f.close()
+    if beacon_test:
+        return beacons
     return timestamps
 
 
@@ -76,24 +84,25 @@ def total_drift(combined_ts, verbose = True, graph_drift = True, graph_elapsed =
 
     local_drift_ms = abs((clock1_end - clock1_start) - (clock2_end - clock2_start))
     if verbose:
-        print("Local drift in ms:\t{}".format(local_drift_ms))
+        print("Overall local drift in ms:\t{}".format(local_drift_ms))
 
-    clock1_elapsed = [(combined_ts[x][1] - clock1_start)/1000 for x in beacons]
-    clock2_elapsed = [(combined_ts[x][2] - clock2_start)/1000 for x in beacons]
-    drift_over_time = [c1 - c2 for c1, c2 in zip(clock1_elapsed, clock2_elapsed)]
+    clock1_elapsed_ms = [(combined_ts[x][1] - clock1_start) for x in beacons]
+    clock2_elapsed_ms = [(combined_ts[x][2] - clock2_start) for x in beacons]
+    drift_over_time_ms = [c1 - c2 for c1, c2 in zip(clock1_elapsed_ms, clock2_elapsed_ms)]
+    print(drift_over_time_ms)
     beacons_s = [(i - first_beacon) / (1000000 * 1.024) for i in beacons]  # in seconds
 
     if verbose:
-        max_drift = abs(max(drift_over_time))
-        min_drift = abs(min(drift_over_time))
+        max_drift = abs(max(drift_over_time_ms))
+        min_drift = abs(min(drift_over_time_ms))
         overall_max = max(max_drift, min_drift)
         print("Max drift:\t{}".format(overall_max))
 
     if graph_elapsed:
-        plt.plot(beacons_s, clock1_elapsed, 'r', label = "clock1")
-        plt.plot(beacons_s, clock2_elapsed, 'b', label = "clock2")
+        plt.plot(beacons_s, clock1_elapsed_ms, 'r', label = "clock1")
+        plt.plot(beacons_s, clock2_elapsed_ms, 'b', label = "clock2")
         plt.xlabel("Elapsed time in seconds based on beacon timestamps")
-        plt.ylabel("Elapsed time in seconds on local clocks")
+        plt.ylabel("Elapsed time in ms on local clocks")
         plt.title("Beacon Timestamps vs Local Clock readings over {} minutes".format(experiment_time_min))
         plt.legend()
         plt.show()
@@ -103,11 +112,18 @@ def total_drift(combined_ts, verbose = True, graph_drift = True, graph_elapsed =
             print("x axis:")
             print(beacons_s[:50])
             print("y_axis")
-            print(drift_over_time[:50])
-        plt.plot(beacons_s, drift_over_time)
+            print(drift_over_time_ms[:50])
+
+        # for i in range(len(beacons_s)):
+        #     print(beacons_s[i], drift_over_time_ms[i])
+        # print("\n\n\nbeacons (x axis)")
+        # print(beacons_s)
+        # print("local cumulative drift (y axis)")
+        # print(drift_over_time_ms)
+        plt.plot(beacons_s, drift_over_time_ms)
         plt.xlabel("Beacon time (s)")
         plt.ylabel("Drift between the clocks (ms)")
-        plt.title("Drift between 2 CC3220SF Local Clocks over a {:4f}-minute experiment".format(experiment_time_min))
+        plt.title("Drift between 2 CC3220SF Local Clocks over a {:4f}-minute experiment, ms".format(experiment_time_min))
         plt.show()
 
 
@@ -188,12 +204,51 @@ def recover_experiment_from_log(folder_name):
     f.close()
 
 
+def analyze_beacons(beacons):
+    #beacons is an array of beacon timestamps
+    num_beacons = len(beacons)
+    missed = 0
+    two_in_a_row = 0
+    for i in range(1, num_beacons):
+        diff = beacons[i] - beacons[i-1]
 
-if __name__ == '__main__':
+        # if diff was greater than 1 second, faulty beacon timestamp
+        if diff>1000000:
+            continue
+        if diff > 150000:
+            missed +=1
+        if diff > 270000:
+            two_in_a_row +=1
+            print(beacons[i], beacons[i-1])
+    print("{}/{} beacons missed, {:4f}% of beacons recieved".format(missed, num_beacons,
+                                                                    100*(num_beacons-missed)/num_beacons))
+    print("Out of {} beacons, there were {} instances of missing 2 in a row".format(num_beacons,
+                                                                    two_in_a_row))
+
+
+def local_clock_test(folder_name):
     folder_name = "2_boards_2021-03-23_14;33;16"
+    # folder_name = "2021-03-24_22;32;48"
     a, b = retrive_2_board_data(folder_name)
     c = combine_board_data(a, b)
     total_drift(c, graph_elapsed=True)
     drift_over_x_beacons(c)
     drift_over_x_beacons(c, absolute=False)
-    #recover_experiment_from_log(folder_name)
+    # recover_experiment_from_log(folder_name)
+
+def beacon_recv_percent(folder):
+    folder_path = os.path.join(os.getcwd(), "beacon_recv_test", folder)
+    files = os.listdir(folder_path)
+    for f in files:
+        if f.find(".log") >=0:
+            files.remove(f)
+    txt_file = files[0]
+    txt_file = os.path.join(folder_path, txt_file)
+    a = parse_txt_file(txt_file, beacon_test=True)
+    analyze_beacons(a)
+
+
+
+if __name__ == '__main__':
+    folder_name = "2021-03-25_19;39;18"
+    beacon_recv_percent(folder_name)
