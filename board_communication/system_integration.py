@@ -152,7 +152,7 @@ def assemble_data_for_plot(data):
                 #base data should not be true, this means that we got an array of length 3 and an array of length 5
                 if base_data:
                     raise Exception
-                
+
                 x = reading[3]
                 y = reading[4]
                 z = reading[5]

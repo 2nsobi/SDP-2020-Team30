@@ -10,6 +10,11 @@ def retrive_2_board_data(folder_name):
     # beacon timestamps and the values are the local timestamps (this will get rid of duplicate readings)
     folder_path = os.path.join(os.getcwd(), "timestamp_data", folder_name)
     files = os.listdir(folder_path)
+
+    for f in files:
+        if f.find(".log")>=0:
+            files.remove(f)
+
     return parse_txt_file(os.path.join(folder_path, files[0])), parse_txt_file(os.path.join(folder_path, files[1]))
 
 
