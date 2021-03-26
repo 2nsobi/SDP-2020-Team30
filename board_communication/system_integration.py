@@ -5,7 +5,7 @@ from PyAccessPoint import pyaccesspoint
 import datetime
 import logging
 import math
-from board_communication.parse_and_plot import plot_tcp_data
+from board_communication.parse_and_plot import plot_tcp_data, plot_one_board_data
 
 WINDOWS = True
 ENTRY_PORT = 10000
@@ -69,7 +69,9 @@ def setup_ap():
     return access_point
 
 
-def linux(plot = True):
+def linux(plot = True, plot_1 = False):
+    # plot: indicates whether or not to plot
+    # plot_1: indicates whether or not to plot only 1 board's output (cannot be true if plot is false)
     global ENTRY_PORT
 
     readings = {"wrist":{}, "base":{}}
@@ -104,7 +106,9 @@ def linux(plot = True):
             if plot:
                 name, data = assemble_data_for_plot(data)
                 readings[name] = data
-
+                if plot_1:
+                    plot_one_board_data(data)
+                    return
             else:
                 parse_mcu_msg(data, client_address)
     except Exception as e:
@@ -144,6 +148,11 @@ def assemble_data_for_plot(data):
                 dict["adc"].append(load_cell)
                 base_data = True
             elif len(reading) == 5: #from the wrist module
+
+                #base data should not be true, this means that we got an array of length 3 and an array of length 5
+                if base_data:
+                    raise Exception
+                
                 x = reading[3]
                 y = reading[4]
                 z = reading[5]

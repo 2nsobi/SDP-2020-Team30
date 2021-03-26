@@ -69,14 +69,39 @@ def plot_tcp_data(wrist_mod_data, base_mod_data):
     plt.legend()
 
     plt.show()
+    return
+
+def plot_one_board_data(data):
+    # this is like the function plot_tcp_data above except it only plots one board's data
+    # data is a dict of the form
+    # {"adc":[array of adc readings], "loacl_ts":[array of local_ts], "beacon_ts": [array of beacon ts]}
+    # the length of the 3 arrays is the same within the dict
+
+    # transform board local_ts axis to beacon_ts axis
+    x_axis = transform_axis(data["local_ts"], data["beacon_ts"])
+
+    # chop off some of adc readings to make sure y axis is the same length
+    y_axis = data["adc"][:len(x_axis)]
+
+    # normalize y axis
+    y_axis = normalize(np.array(y_axis).reshape(-1, 1), axis=0, norm='max')
 
 
-    return 1
+    plt.plot(x_axis, y_axis, label="wrist")
+    plt.xlabel("Beacon Timestamp")
+    plt.ylabel("Relative ADC readings")
+    plt.title("Beacon Timestamps vs Relative ADC Readings")
+    plt.legend()
+
+    plt.show()
+    return
+
 
 def transform_axis(local_ts, beacon_ts):
     # takes in 2 arrays of the same length, and transforms the local_ts onto the beacon_ts
     # returns an array that is the transformed local_ts onto the beacon_ts
-    # ***Note*** some of the end of the local
+    # ***Note*** the returned array will be slightly shorted than the length of the input arrays, specifically,
+    # all repeat readings at the end of the beacon_ts array will be cut off except 1
 
     if len(local_ts) == 0 or len(beacon_ts) == 0:
         print("Length of array is 0, exiting")
