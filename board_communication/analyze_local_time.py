@@ -18,12 +18,17 @@ def retrive_2_board_data(folder_name):
     return parse_txt_file(os.path.join(folder_path, files[0])), parse_txt_file(os.path.join(folder_path, files[1]))
 
 
-def parse_txt_file(filepath):
+def parse_txt_file(filepath, beacon_test = False, array = False):
     # takes a path to a board txt file where the format is <beacon timestamp>,<local timestamp> on each line
     # returns a dict where the keys are the beacon timestamps and the values are the local timestamps, should get rid
     # of duplicate entries
+    # if beacon test is true, returns an array of the beacon timestamps
+    # if array is true, instead returns a 2d array of the text file data where the 1st dimension is each line and the
+    # 2nd dimension is the elements in the line separated by ","
 
     timestamps = {}
+    beacons = []
+    arr = []
 
     f = open(filepath, 'r+')
     data = f.readlines()
@@ -31,13 +36,21 @@ def parse_txt_file(filepath):
     data = data[1:]
     for line in data:
         line = line.replace("\n", "").split(",")
+        if array:
+            arr.append([int(x) for x in line])
+            continue
         beacon_ts = int(line[0])
-        if beacon_ts == 0:
+        beacons.append(beacon_ts)
+        if beacon_ts == 0 or beacon_test:
             continue
         local_ts = int(line[1])
         timestamps[beacon_ts] = local_ts
 
     f.close()
+    if beacon_test:
+        return beacons
+    if array:
+        return arr
     return timestamps
 
 
@@ -193,12 +206,101 @@ def recover_experiment_from_log(folder_name):
     f.close()
 
 
+def analyze_beacons(beacons):
+    #beacons is an array of beacon timestamps
+    num_beacons = len(beacons)
+    missed = 0
+    two_in_a_row = 0
+    for i in range(1, num_beacons):
+        diff = beacons[i] - beacons[i-1]
 
-if __name__ == '__main__':
+        # if diff was greater than 1 second, faulty beacon timestamp
+        if diff>1000000:
+            continue
+        if diff > 150000:
+            missed +=1
+        if diff > 270000:
+            two_in_a_row +=1
+            print(beacons[i], beacons[i-1])
+    print("{}/{} beacons missed, {:4f}% of beacons recieved".format(missed, num_beacons,
+                                                                    100*(num_beacons-missed)/num_beacons))
+    print("Out of {} beacons, there were {} instances of missing 2 in a row".format(num_beacons,
+                                                                    two_in_a_row))
+
+
+def local_clock_test(folder_name):
     folder_name = "2_boards_2021-03-23_14;33;16"
+    # folder_name = "2021-03-24_22;32;48"
     a, b = retrive_2_board_data(folder_name)
     c = combine_board_data(a, b)
     total_drift(c, graph_elapsed=True)
     drift_over_x_beacons(c)
     drift_over_x_beacons(c, absolute=False)
-    #recover_experiment_from_log(folder_name)
+    # recover_experiment_from_log(folder_name)
+
+def beacon_recv_percent(folder, hw = False):
+    # if using a file from the beacon_recv_test folder, <folder> should be the name of the subfolder and hw should be
+    # false.  If using a file from the hw_timestamp_data folder, <folder> should be the name of the file in
+    # hw_timestamp_data and hw should be true
+    if not hw:
+        folder_path = os.path.join(os.getcwd(), "beacon_recv_test", folder)
+        files = os.listdir(folder_path)
+        for f in files:
+            if f.find(".log") >=0:
+                files.remove(f)
+        txt_file = files[0]
+        txt_file = os.path.join(folder_path, txt_file)
+    else:
+        txt_file = os.path.join(os.getcwd(), "hw_timestamp_data", folder)
+    a = parse_txt_file(txt_file, beacon_test=True)
+    analyze_beacons(a)
+
+
+def analyze_hw_ts(filename):
+    # filename is a txt file in the hw_timestamp_data folder where each line is (beacon_ts, hw_ts, local_ts)
+    txt_file = os.path.join(os.getcwd(), "hw_timestamp_data", filename)
+
+    # 2d array where first dimension is each line and second dimension is (beacon_ts, hw_ts, local_ts) for that line
+    data = parse_txt_file(txt_file, array=True)
+
+    # array of hw timestamps in ms
+    hw_ts = [x[1]/1000 for x in data]
+
+    # array of local timestamps
+    loc_ts = [x[2] for x in data]
+
+
+    # get rid of any extremely large intervals (>200ms) or small (<50ms) for missed beacons and create intervals array
+    hw_intervals = []
+    loc_intervals = []
+    for i in range(1, len(hw_ts)):
+        hw_interval = hw_ts[i] - hw_ts[i-1]# in ms
+        loc_interval = loc_ts[i] - loc_ts[i-1] # in ms
+        if hw_interval > 200 or hw_interval < 50:
+            continue
+        hw_intervals.append(hw_interval)
+        loc_intervals.append(loc_interval)
+    trials = len(hw_intervals)
+
+    #plot a histogram of intervals between hw_timestamps (gives an idea of how consistently the beacons arrive)
+    plt.hist(hw_intervals, bins=30)
+    plt.title("Intervals between hardware timestamps,\n{} trials".format(trials))
+    plt.xlabel("Interval in ms")
+    plt.ylabel("frequency")
+    plt.show()
+
+    # plot histogram of local_ts (gives an idea of the variability of local_ts readings)
+    plt.hist(loc_intervals, bins=30)
+    plt.title("Intervals between local timestamps,\n{} trials".format(trials))
+    plt.xlabel("Interval in ms")
+    plt.ylabel("frequency")
+    plt.show()
+
+
+
+
+if __name__ == '__main__':
+    #folder_name = "2021-03-29_11;36;06.txt"
+    folder_name = "2021-03-29_12;53;26.txt"
+    #beacon_recv_percent(folder_name, True)
+    analyze_hw_ts(folder_name)

@@ -34,7 +34,7 @@
 #define ENTRY_PORT                  10000
 #define BILLION                     1000000000
 #define MESSAGE_SIZE                50
-#define NUM_READINGS                1000
+#define NUM_READINGS                100
 #define MAX_RX_PACKET_SIZE          1544
 #define MAX_TX_PACKET_SIZE          100000
 #define BEACON_TIME_TRIGGER         1000           // in ms
@@ -59,8 +59,11 @@ typedef struct
 int32_t connectToAP();
 
 void load_cell_test(ADC_Handle *adc0);
+
 int32_t time_beacons_and_load_cell(ADC_Handle *adc0);
+
 int32_t time_beacons_and_accelerometer(ADC_Handle *adc0, ADC_Handle *adc1, ADC_Handle *adc2);
+
 int32_t accel_to_string(uint32_t timestamps[][NUM_READINGS], float accel_readings[][NUM_READINGS], uint32_t current_ts_index, uint8_t * buf);
 
 uint16_t get_port_for_data_tx();
@@ -69,13 +72,9 @@ int32_t transmit_data_forever_test(uint16_t sockPort);
 
 int32_t time_drift_test(uint16_t sockPort);
 
-int32_t time_drift_test_l3(uint16_t sockPort);
 
-int32_t time_drift_test_l2();
+_u32 parse_beacon_frame(uint8_t * Rx_frame, frameInfo_t * frameInfo, uint8_t printInfo);
 
-int32_t parse_beacon_frame(uint8_t * Rx_frame, frameInfo_t * frameInfo, uint8_t printInfo);
-
-int32_t tx_accelerometer(uint16_t sockPort);
 
 int32_t q_to_string(queue_t * q, uint8_t * buf);
 

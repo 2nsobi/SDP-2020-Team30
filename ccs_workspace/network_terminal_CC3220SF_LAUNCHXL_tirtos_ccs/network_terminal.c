@@ -1946,52 +1946,52 @@ void * mainThread(void *arg)
 //--------------------------------------------------------------------------------------------------------------------------------------------------
 //ADC SETUP
 
-    ADC_Handle   adc0, adc1, adc2;
-    ADC_Params   params;
-
-    ADC_init();
-    ADC_Params_init(&params);
-
-    adc0 = ADC_open(CONFIG_ADC_0, &params);
-    if (adc0 == NULL) {
-        UART_PRINT("Error initializing CONFIG_ADC_0\n");
-        return(-1);
-    }
-    UART_PRINT("Successfully initialized CONFIG_ADC_0\n");
-
-    adc1 = ADC_open(CONFIG_ADC_1, &params);
-    if (adc1 == NULL) {
-        UART_PRINT("Error initializing CONFIG_ADC_0\n");
-        return(-1);
-    }
-    UART_PRINT("Successfully initialized CONFIG_ADC_0\n");
-
-    adc2 = ADC_open(CONFIG_ADC_2, &params);
-    if (adc2 == NULL) {
-        UART_PRINT("Error initializing CONFIG_ADC_0\n");
-        return(-1);
-    }
-    UART_PRINT("Successfully initialized CONFIG_ADC_0\n");
-
-    //load_cell_test(&adc0);
-    //time_beacons_and_load_cell(&adc0);
-    time_beacons_and_accelerometer(&adc0, &adc1, &adc2);
-
-
-    ADC_close(adc0);
+//    ADC_Handle   adc0, adc1, adc2;
+//    ADC_Params   params;
+//
+//    ADC_init();
+//    ADC_Params_init(&params);
+//
+//    adc0 = ADC_open(CONFIG_ADC_0, &params);
+//    if (adc0 == NULL) {
+//        UART_PRINT("Error initializing CONFIG_ADC_0\n");
+//        return(-1);
+//    }
+//    UART_PRINT("Successfully initialized CONFIG_ADC_0\n");
+//
+//    adc1 = ADC_open(CONFIG_ADC_1, &params);
+//    if (adc1 == NULL) {
+//        UART_PRINT("Error initializing CONFIG_ADC_0\n");
+//        return(-1);
+//    }
+//    UART_PRINT("Successfully initialized CONFIG_ADC_0\n");
+//
+//    adc2 = ADC_open(CONFIG_ADC_2, &params);
+//    if (adc2 == NULL) {
+//        UART_PRINT("Error initializing CONFIG_ADC_0\n");
+//        return(-1);
+//    }
+//    UART_PRINT("Successfully initialized CONFIG_ADC_0\n");
+//
+//    //load_cell_test(&adc0);
+//    time_beacons_and_load_cell(&adc0);
+//    //time_beacons_and_accelerometer(&adc0, &adc1, &adc2);
+//
+//
+//    ADC_close(adc0);
 
 
 //--------------------------------------------------------------------------------------------------------------------------------------------------
 
 
 
-    //test_time_beac_sync();
+    test_time_beac_sync();
 
     /*
      * Calling UART handling method which serves as the application main loop.
      * Note that this function doesn't return.
      */
-    RetVal = cmd_prompt(NULL);
+    //RetVal = cmd_prompt(NULL);
 
     UART_PRINT("Exiting Program");
 

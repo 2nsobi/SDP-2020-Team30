@@ -36,9 +36,10 @@ typedef union
 }sockAddr_t;
 
 uint8_t Tx_data[MAX_TX_PACKET_SIZE];
-int32_t timestamps[2][NUM_READINGS];
+uint32_t timestamps[2][NUM_READINGS];
 float load_cell_readings[NUM_READINGS];
 float accel_readings[3][NUM_READINGS];
+uint32_t hw_timestamps[NUM_READINGS];
 
 int32_t connectToAP()
 {
@@ -710,135 +711,6 @@ int32_t time_drift_test(uint16_t sockPort)
     return(0);
 }
 
-int32_t tx_accelerometer(uint16_t sockPort)
-{
-    /* ALWAYS DECLARE ALL VARIABLES AT TOP OF FUNCTION TO AVOID BUFFER ISSUES */
-    uint32_t buflen = MESSAGE_SIZE;
-    uint32_t channel = 11;
-    _i16 cur_channel;
-    _i16 numBytes;
-    _i16 status;
-    uint8_t Rx_frame[MAX_RX_PACKET_SIZE];
-    uint32_t i=0;
-    uint32_t j=0;
-    _u32 nonBlocking = 1;
-    uint32_t timestamp = 0;
-    uint16_t beacInterval;
-    uint32_t last_ts = 0;
-    frameInfo_t frameInfo;
-    _i16 beaconRxSock;
-    queue_t q;
-    int32_t reading[MAX_ELEM_ARR_SIZE];
-    struct timespec cur_time;
-
-    /* for on-board accelerometer */
-    /* structure to read the accelerometer data*/
-    /* the resolution is in 8 bit*/
-    struct bma2x2_accel_data_temp sample_xyzt;
-
-    uint8_t createFilterArgs1[] = " -f FRAME_TYPE -v management -e not_equals -a drop -m L1";
-    uint8_t createFilterArgs2[] = " -f S_MAC -v 72:BC:10:69:9C:B6 -e not_equals -a drop -m L1";
-//    uint8_t createFilterArgs3[] = " -f S_MAC -v 72:BC:10:69:9C:B6 -e equals -a event -m L1";
-//    uint8_t createFilterArgs2[] = " -f S_MAC -v 58:00:e3:43:6b:63 -e not_equals -a drop -m L1";
-//    uint8_t createFilterArgs3[] = " -f S_MAC -v 58:00:e3:43:6b:63 -e equals -a event -m L1";
-    uint8_t enableFilterArgs[] = "";
-
-    status = cmdCreateFilterCallback(createFilterArgs1);
-    ASSERT_ON_ERROR(status, WLAN_ERROR);
-
-    status = cmdCreateFilterCallback(createFilterArgs2);
-    ASSERT_ON_ERROR(status, WLAN_ERROR);
-
-//    status = cmdCreateFilterCallback(createFilterArgs3);
-//    ASSERT_ON_ERROR(status, WLAN_ERROR);
-
-    status = cmdEnableFilterCallback(enableFilterArgs);
-    ASSERT_ON_ERROR(status, WLAN_ERROR);
-
-    memset(Rx_frame, 0, MAX_RX_PACKET_SIZE);
-
-    UART_PRINT("[nnaji msg] buflen: %i\n\r", buflen);
-
-    /* To use transceiver mode, the device must be set in STA role, be disconnected, and have disabled
-        previous connection policies that might try to automatically connect to an AP. */
-    status = sl_WlanPolicySet(SL_WLAN_POLICY_CONNECTION, SL_WLAN_CONNECTION_POLICY(0, 0, 0, 0), NULL, 0);
-    if( status )
-    {
-        UART_PRINT("[line:%d, error:%d]\n\r", __LINE__, status);
-        return(-1);
-    }
-
-    beaconRxSock = sl_Socket(SL_AF_RF, SL_SOCK_DGRAM, channel);
-    ASSERT_ON_ERROR(beaconRxSock, SL_SOCKET_ERROR);
-
-    status = sl_SetSockOpt(beaconRxSock, SL_SOL_SOCKET, SL_SO_NONBLOCKING, &nonBlocking, sizeof(nonBlocking));
-    if(status < 0)
-    {
-        UART_PRINT("[line:%d, error:%d] %s\n\r", __LINE__, status,
-                   SL_SOCKET_ERROR);
-        sl_Close(beaconRxSock);
-        return(-1);
-    }
-
-    initQueue(&q);
-    while(1)
-    {
-        numBytes = sl_Recv(beaconRxSock, &Rx_frame, MAX_RX_PACKET_SIZE, 0);
-        if(numBytes != SL_ERROR_BSD_EAGAIN)
-        {
-            if(numBytes < 0)
-            {
-                UART_PRINT("[line:%d, error:%d] %s\n\r", __LINE__, numBytes,
-                           SL_SOCKET_ERROR);
-                break;
-            }
-
-            parse_beacon_frame(Rx_frame, &frameInfo, 0);
-            last_ts = frameInfo.timestamp;
-        }
-
-        reading[0] = last_ts;
-
-        clock_gettime(CLOCK_REALTIME, &cur_time);
-        reading[1] = (int32_t) (cur_time.tv_sec * 1000 + cur_time.tv_nsec / 1000000);
-
-        /*reads the accelerometer data in 8 bit resolution*/
-        /*There are different API for reading out the accelerometer data in
-         * 10,14,12 bit resolution*/
-        if(BMA2x2_INIT_VALUE != bma2x2_read_accel_xyzt(&sample_xyzt))
-        {
-            UART_PRINT("Error reading from the accelerometer\n\r");
-        }
-
-        reading[2] = (int32_t) sample_xyzt.x;
-        reading[3] = (int32_t) sample_xyzt.y;
-        reading[4] = (int32_t) sample_xyzt.z;
-
-        if(qFull(&q))
-            deque(&q);
-        enque(&q, reading);
-
-//        UART_PRINT("most recent reading: {%u, %u, %i, %i, %i}\n\r", reading[0], reading[1], reading[2], reading[3], reading[4]);
-//        UART_PRINT("q contents:\n\r");
-//        for(i=0;i<q.size;i++)
-//            UART_PRINT("%i: {%u, %u, %i, %i, %i}\n\r", i, q.arr[qIndex(&q,i)][0], q.arr[qIndex(&q,i)][1],
-//                       q.arr[qIndex(&q,i)][2], q.arr[qIndex(&q,i)][3], q.arr[qIndex(&q,i)][4]);
-
-        memset(Tx_data, 0, MAX_TX_PACKET_SIZE);
-        q_to_string(&q, Tx_data);
-        UART_PRINT("%s\n\rlength: %i\n\r", Tx_data, strlen(Tx_data));
-
-        UART_PRINT("\n\r");
-        sleep(2);
-    }
-
-    /* Calling 'close' with the socket descriptor,
-    * once operation is finished. */
-    status = sl_Close(beaconRxSock);
-    ASSERT_ON_ERROR(status, SL_SOCKET_ERROR);
-
-    return(0);
-}
 
 
 //-----------------------------------------------------------------------------------------------------------------------------------------------
@@ -1029,28 +901,7 @@ int32_t time_beacons_and_accelerometer(ADC_Handle *adc0, ADC_Handle *adc1, ADC_H
                 status = sl_Send(tcp_sock, &Tx_data, strlen(Tx_data), 0);
                 UART_PRINT("bytes sent: %i\n\r",status);
                 UART_PRINT("String length of TX data: %i\n\r", strlen(Tx_data));
-                //            while(sent_bytes < bytes_to_send)
-                //            {
-                //                if(bytes_to_send - sent_bytes >= bytes_to_send)
-                //                {
-                //                    buflen = bytes_to_send;
-                //                }
-                //                else
-                //                {
-                //                    buflen = bytes_to_send - sent_bytes;
-                //                }
-                //
-                //                status = sl_Send(tcp_sock, &Tx_data, buflen, 0);
-                //                UART_PRINT("bytes sent: %i\n\r",status);
-                //                UART_PRINT("String length of TX data: %i\n\r", strlen(Tx_data));
-                //                if(status < 0)
-                //                {
-                //                    UART_PRINT("[line:%d, error:%d] %s\n\r", __LINE__, status,
-                //                               SL_SOCKET_ERROR);
-                //                    break;
-                //                }
-                //                sent_bytes += status;
-                //            }
+
 
                 status = sl_Close(tcp_sock);
                 ASSERT_ON_ERROR(status, SL_SOCKET_ERROR);
@@ -1076,24 +927,6 @@ int32_t time_beacons_and_accelerometer(ADC_Handle *adc0, ADC_Handle *adc1, ADC_H
 
                 last_local_ts = 0;
             }
-            else{
-               //UART_PRINT("%u\n\r", frameInfo.timestamp/1000);
-               ;
-            }
-            //        else
-            //        {
-            //            if(counter % 10000 == 0)
-            //            {
-            //                UART_PRINT("%u %u\n\r", frameInfo.timestamp,last_beac_ts);
-            //                UART_PRINT("%u\n\r", (frameInfo.timestamp-last_beac_ts)/1000);
-            //                UART_PRINT("%i %f\n\r\n\r", counter, counter / 60000.0f);
-            //            }
-            //        }
-
-            //        if(last_beac_ts!=-1)
-            //        {
-            //            counter += (frameInfo.timestamp - last_beac_ts)/1000;
-            //        }
         }
     }
 
@@ -1142,8 +975,6 @@ int32_t time_beacons_and_load_cell(ADC_Handle *adc0)
 {
     /* ALWAYS DECLARE ALL VARIABLES AT TOP OF FUNCTION TO AVOID BUFFER ISSUES */
     uint32_t channel = 1;
-//    int32_t timestamps[2][NUM_READINGS];
-//    float load_cell_readings[NUM_READINGS];
     int current_ts_index = 0;
     _i16 cur_channel;
     _i16 numBytes;
@@ -1174,6 +1005,8 @@ int32_t time_beacons_and_load_cell(ADC_Handle *adc0)
     int32_t addrSize;
     int32_t no_bytes_count = 0;
     int32_t beacon_count = 0;
+    _u32 hw_timestamp;
+    _u32 last_hw_timestamp = 0;
 
     int res0;
     uint16_t adcraw0;
@@ -1204,7 +1037,7 @@ int32_t time_beacons_and_load_cell(ADC_Handle *adc0)
         clock_gettime(CLOCK_REALTIME, &cur_time);
 
         //UART_PRINT("start of loop\n");
-        //sleep(1);
+        sleep(1);
         numBytes = sl_Recv(beaconRxSock, &Rx_frame, MAX_RX_PACKET_SIZE, 0);
 
         if(numBytes != SL_ERROR_BSD_EAGAIN)
@@ -1229,9 +1062,9 @@ int32_t time_beacons_and_load_cell(ADC_Handle *adc0)
                 UART_PRINT("CONFIG_ADC_0 convert failed\n\r");
             }
 
-            UART_PRINT("adc0mv: %f\n\r", adc0mv);
+            //UART_PRINT("adc0mv: %f\n\r", adc0mv);
 
-            parse_beacon_frame(Rx_frame, &frameInfo, 0);
+            hw_timestamp = parse_beacon_frame(Rx_frame, &frameInfo, 0);
             beacon_count+=1;
             UART_PRINT("%d beacons recieved\n\r", beacon_count);
 
@@ -1240,10 +1073,13 @@ int32_t time_beacons_and_load_cell(ADC_Handle *adc0)
             last_local_ts = timestamps[1][current_ts_index];
             load_cell_readings[current_ts_index] = adc0mv;
             //UART_PRINT("Beacon_ts interval: %d\n\r", last_beac_ts-frameInfo.timestamp);
-            //UART_PRINT("Beacon_ts: %d\n\r", frameInfo.timestamp);
-            UART_PRINT("Load cell reading: %f\n\r", load_cell_readings[current_ts_index]);
+            UART_PRINT("Beacon_ts:\t%d\n\r", frameInfo.timestamp);
+            UART_PRINT("HW timestamp:\t%ul\n\r", hw_timestamp);
+            //UART_PRINT("Load cell reading: %f\n\r", load_cell_readings[current_ts_index]);
 
             current_ts_index = (current_ts_index + 1) % NUM_READINGS;
+            last_beac_ts = frameInfo.timestamp;
+            last_hw_timestamp = hw_timestamp;
         }
         else
         {
@@ -1317,28 +1153,6 @@ int32_t time_beacons_and_load_cell(ADC_Handle *adc0)
                 status = sl_Send(tcp_sock, &Tx_data, strlen(Tx_data), 0);
                 UART_PRINT("bytes sent: %i\n\r",status);
                 UART_PRINT("String length of TX data: %i\n\r", strlen(Tx_data));
-                //            while(sent_bytes < bytes_to_send)
-                //            {
-                //                if(bytes_to_send - sent_bytes >= bytes_to_send)
-                //                {
-                //                    buflen = bytes_to_send;
-                //                }
-                //                else
-                //                {
-                //                    buflen = bytes_to_send - sent_bytes;
-                //                }
-                //
-                //                status = sl_Send(tcp_sock, &Tx_data, buflen, 0);
-                //                UART_PRINT("bytes sent: %i\n\r",status);
-                //                UART_PRINT("String length of TX data: %i\n\r", strlen(Tx_data));
-                //                if(status < 0)
-                //                {
-                //                    UART_PRINT("[line:%d, error:%d] %s\n\r", __LINE__, status,
-                //                               SL_SOCKET_ERROR);
-                //                    break;
-                //                }
-                //                sent_bytes += status;
-                //            }
 
                 status = sl_Close(tcp_sock);
                 ASSERT_ON_ERROR(status, SL_SOCKET_ERROR);
@@ -1364,24 +1178,6 @@ int32_t time_beacons_and_load_cell(ADC_Handle *adc0)
 
                 last_local_ts = 0;
             }
-            else{
-               //UART_PRINT("%u\n\r", frameInfo.timestamp/1000);
-               ;
-            }
-            //        else
-            //        {
-            //            if(counter % 10000 == 0)
-            //            {
-            //                UART_PRINT("%u %u\n\r", frameInfo.timestamp,last_beac_ts);
-            //                UART_PRINT("%u\n\r", (frameInfo.timestamp-last_beac_ts)/1000);
-            //                UART_PRINT("%i %f\n\r\n\r", counter, counter / 60000.0f);
-            //            }
-            //        }
-
-            //        if(last_beac_ts!=-1)
-            //        {
-            //            counter += (frameInfo.timestamp - last_beac_ts)/1000;
-            //        }
         }
     }
 
@@ -1407,7 +1203,6 @@ int32_t test_time_beac_sync()
 {
     /* ALWAYS DECLARE ALL VARIABLES AT TOP OF FUNCTION TO AVOID BUFFER ISSUES */
     uint32_t channel = 1;
-    int32_t timestamps[2][NUM_READINGS];
     int current_ts_index = 0;
     _i16 cur_channel;
     _i16 numBytes;
@@ -1427,8 +1222,11 @@ int32_t test_time_beac_sync()
     uint32_t last_beac_ts = 0;
     //int32_t counter = 0;
     uint8_t Rx_frame[MAX_RX_PACKET_SIZE];
-    uint32_t send_beac_ts = 1000;
-    uint32_t send_interval = 10000;
+    uint32_t send_beac_ts = 0;
+    uint32_t send_interval = 30000;
+    _u32 hw_timestamp;
+    _u32 last_hw_timestamp = 0;
+    uint32_t local_ts, last_local_ts;
 
     sockAddr_t sAddr;
     uint16_t entry_port = ENTRY_PORT;
@@ -1456,11 +1254,12 @@ int32_t test_time_beac_sync()
     while(1)
     {
         if(no_bytes_count == 1000){
-            UART_PRINT("1000 loops with no bytes found\n\r");
+            //UART_PRINT("1000 loops with no bytes found\n\r");
             no_bytes_count = 0;
         }
         //UART_PRINT("start of loop\n");
         //sleep(1);
+        clock_gettime(CLOCK_REALTIME, &cur_time);
         numBytes = sl_Recv(beaconRxSock, &Rx_frame, MAX_RX_PACKET_SIZE, 0);
 
         if(numBytes != SL_ERROR_BSD_EAGAIN)
@@ -1473,10 +1272,9 @@ int32_t test_time_beac_sync()
                 continue;
             }
             //UART_PRINT("Beacon recieved \n\r");
-            clock_gettime(CLOCK_REALTIME, &cur_time);
-            parse_beacon_frame(Rx_frame, &frameInfo, 0);
+            hw_timestamp = parse_beacon_frame(Rx_frame, &frameInfo, 0);
             beacon_count+=1;
-            UART_PRINT("%d beacons recieved\n\r", beacon_count);
+            //UART_PRINT("%d beacons recieved\n\r", beacon_count);
         }
         else{
             no_bytes_count += 1;
@@ -1488,12 +1286,19 @@ int32_t test_time_beac_sync()
 
 
 
-        timestamps[0][current_ts_index] = (int32_t) frameInfo.timestamp;
-        timestamps[1][current_ts_index] = (int32_t) (cur_time.tv_sec * 1000 + cur_time.tv_nsec / 1000000);
-        current_ts_index = (current_ts_index + 1) % NUM_READINGS;
-        //UART_PRINT("Beacon_ts interval: %d\n\r", last_beac_ts-frameInfo.timestamp);
-        UART_PRINT("Beacon_ts: %d\n\r", frameInfo.timestamp);
+        timestamps[0][current_ts_index] = (uint32_t) frameInfo.timestamp;
+        local_ts = (uint32_t) (cur_time.tv_sec * 1000 + cur_time.tv_nsec / 1000000);
+        timestamps[1][current_ts_index] = local_ts;
+        hw_timestamps[current_ts_index] = hw_timestamp;
 
+        //UART_PRINT("Beacon_ts interval: %d\n\r", last_beac_ts-frameInfo.timestamp);
+//        UART_PRINT("Beacon_ts:   \t%u\n\r", frameInfo.timestamp);
+//        UART_PRINT("hw_timestamp:\t%ul\n\r", hw_timestamp);
+//        UART_PRINT("Local_ts    :\t%u\n\r", local_ts);
+        //UART_PRINT("%u,%lu,%u\n", frameInfo.timestamp, hw_timestamp, local_ts);
+
+        current_ts_index = (current_ts_index + 1) % NUM_READINGS;
+        last_beac_ts = frameInfo.timestamp;
 
         if(send_beac_ts==0)
         {
@@ -1502,6 +1307,12 @@ int32_t test_time_beac_sync()
             //           send_interval);
         }
 
+        if(current_ts_index == (NUM_READINGS - 1)){
+            for(i=0;i<NUM_READINGS;i++){
+                UART_PRINT("%u,%lu,%u\n", timestamps[0][i], hw_timestamps[i], timestamps[1][i]);
+            }
+            return 0;
+        }
 
         if(frameInfo.timestamp/1000 >= send_beac_ts)
         {
@@ -1554,7 +1365,7 @@ int32_t test_time_beac_sync()
                     UART_PRINT("[line:%d, error:%d] %s\n\r", __LINE__, status,
                                SL_SOCKET_ERROR);
                     sl_Close(tcp_sock);
-                    UART_PRINT("No TCP socket to connect to, terminating program\n");
+                    UART_PRINT("No TCP socket to connect to, terminating program\n\r");
                     return(-1);
                 }
                 break;
@@ -1609,25 +1420,6 @@ int32_t test_time_beac_sync()
             send_beac_ts += send_interval;
             UART_PRINT("next timestamp to send data at: %u\n\r", send_beac_ts);
         }
-        else{
-            //UART_PRINT("%u\n\r", frameInfo.timestamp/1000);
-            ;
-        }
-//        else
-//        {
-//            if(counter % 10000 == 0)
-//            {
-//                UART_PRINT("%u %u\n\r", frameInfo.timestamp,last_beac_ts);
-//                UART_PRINT("%u\n\r", (frameInfo.timestamp-last_beac_ts)/1000);
-//                UART_PRINT("%i %f\n\r\n\r", counter, counter / 60000.0f);
-//            }
-//        }
-
-//        if(last_beac_ts!=-1)
-//        {
-//            counter += (frameInfo.timestamp - last_beac_ts)/1000;
-//        }
-        last_beac_ts = frameInfo.timestamp;
     }
 
     /* Calling 'close' with the socket descriptor,
@@ -1638,272 +1430,20 @@ int32_t test_time_beac_sync()
     return(0);
 }
 
-int32_t time_drift_test_l2(){
-    /* ALWAYS DECLARE ALL VARIABLES AT TOP OF FUNCTION TO AVOID BUFFER ISSUES */
-    uint32_t buflen = MESSAGE_SIZE;
-    uint8_t rcv_msg_buff[buflen];
-    uint32_t channel = 11;
-    uint32_t max_packet_size = 1544;
-    _i16 channels[11] = {1,2,3,4,5,6,7,8,9,10,11};
-    _i16 cur_channel;
-    _i16 numBytes;
-    _i16 status;
-    struct SlTimeval_t timeVal;
-    uint8_t Rx_frame[max_packet_size];
-    uint32_t i=0;
-    uint32_t j=0;
-    uint32_t k=0;
-    _u32 nonBlocking = 1;
+
+_u32 parse_beacon_frame(uint8_t * Rx_frame, frameInfo_t * frameInfo, uint8_t printInfo){
+    // return value is the hardware timestamp from the proprietary header offset
     int32_t hdrOfs = 8;   // proprietary header offset
     uint32_t timestamp = 0;
-    uint16_t beacInterval;
-    int32_t last_ts = -1;
-    int32_t numBeacons = 100;
-    uint16_t expectedInterval = 0;
-    int32_t time_diffs[numBeacons];
-    frameInfo_t frameInfo;
-    int32_t misses = 0;
-    _i16 beaconRxSock;
-
-//    uint8_t createFilterArgs1[] = " -f FRAME_TYPE -v management -e not_equals -a drop -m L1";
-    uint8_t createFilterArgs1[] = " -f FRAME_TYPE -v management -e not_equals -a event -m L1";
-//    uint8_t createFilterArgs2[] = " -f S_MAC -v 72:BC:10:69:9C:B6 -e not_equals -a drop -m L1";
-//    uint8_t createFilterArgs3[] = " -f S_MAC -v 72:BC:10:69:9C:B6 -e equals -a event -m L1";
-    uint8_t createFilterArgs2[] = " -f S_MAC -v 58:00:e3:43:6b:63 -e not_equals -a drop -m L1";
-//    uint8_t createFilterArgs3[] = " -f S_MAC -v 58:00:e3:43:6b:63 -e equals -a event -m L1";
-    uint8_t enableFilterArgs[] = "";
-
-    status = cmdCreateFilterCallback(createFilterArgs2);
-    ASSERT_ON_ERROR(status, WLAN_ERROR);
-
-    status = cmdCreateFilterCallback(createFilterArgs1);
-    ASSERT_ON_ERROR(status, WLAN_ERROR);
-
-//    status = cmdCreateFilterCallback(createFilterArgs2);
-//    ASSERT_ON_ERROR(status, WLAN_ERROR);
-
-//    status = cmdCreateFilterCallback(createFilterArgs3);
-//    ASSERT_ON_ERROR(status, WLAN_ERROR);
-
-    status = cmdEnableFilterCallback(enableFilterArgs);
-    ASSERT_ON_ERROR(status, WLAN_ERROR);
-
-    timeVal.tv_sec = 2;             // Seconds
-    timeVal.tv_usec = 0;             // Microseconds. 10000 microseconds resolution
-
-//    memset(rcv_msg_buff, 0, strlen(rcv_msg_buff));
-    memset(Rx_frame, 0, max_packet_size);
-
-    UART_PRINT("[nnaji msg] buflen: %i\n\r", buflen);
-
-    /* To use transceiver mode, the device must be set in STA role, be disconnected, and have disabled
-        previous connection policies that might try to automatically connect to an AP. */
-    status = sl_WlanPolicySet(SL_WLAN_POLICY_CONNECTION, SL_WLAN_CONNECTION_POLICY(0, 0, 0, 0), NULL, 0);
-    if( status )
-    {
-        UART_PRINT("[line:%d, error:%d]\n\r", __LINE__, status);
-        return(-1);
-    }
-//    status = sl_WlanDisconnect();
-//    if( status )
-//    {
-//        UART_PRINT("[line:%d, error:%d]\n\r", __LINE__, status);
-//        return(-1);
-//    }
-
-    beaconRxSock = sl_Socket(SL_AF_RF, SL_SOCK_DGRAM, channel);
-//    beaconRxSock = sl_Socket(SL_AF_RF, SL_SOCK_RAW, channel);
-    ASSERT_ON_ERROR(beaconRxSock, SL_SOCKET_ERROR);
-
-//    status = sl_SetSockOpt(beaconRxSock, SL_SOL_SOCKET, SL_SO_RCVTIMEO, (_u8 *)&timeVal, sizeof(timeVal));    // Enable receive timeout
-//    if(status < 0)
-//    {
-//        UART_PRINT("[line:%d, error:%d] %s\n\r", __LINE__, status,
-//                   SL_SOCKET_ERROR);
-//        sl_Close(beaconRxSock);
-//        return(-1);
-//    }
-
-    status = sl_SetSockOpt(beaconRxSock, SL_SOL_SOCKET, SL_SO_NONBLOCKING, &nonBlocking, sizeof(nonBlocking));
-    if(status < 0)
-    {
-        UART_PRINT("[line:%d, error:%d] %s\n\r", __LINE__, status,
-                   SL_SOCKET_ERROR);
-        sl_Close(beaconRxSock);
-        return(-1);
-    }
-
-    while(1)
-//    while(i < numBeacons)
-    {
-        for(i=0;i<11;i++)
-        {
-            cur_channel = channels[i];
-            status = sl_SetSockOpt(beaconRxSock, SL_SOL_SOCKET, SL_SO_CHANGE_CHANNEL, &cur_channel, sizeof(cur_channel));
-            if(status < 0)
-            {
-                UART_PRINT("[line:%d, error:%d] %s, channel: %i\n\r", __LINE__, status,
-                           SL_SOCKET_ERROR, cur_channel);
-
-                if(numBytes != SL_ERROR_BSD_EAGAIN)
-                    break;
-            }
-
-            numBytes = sl_Recv(beaconRxSock, &Rx_frame, max_packet_size, 0);
-            if(numBytes != SL_ERROR_BSD_EAGAIN)
-            {
-                UART_PRINT("[nnaji msg] numBytes from channel %i: %i\n\r", cur_channel, numBytes);
-                if(numBytes < 0)
-                {
-                    UART_PRINT("[line:%d, error:%d] %s, channel: %i\n\r", __LINE__, numBytes,
-                               SL_SOCKET_ERROR, cur_channel);
-
-                    break;
-                }
-
-                UART_PRINT("first 50 bytes: ");
-                for(j=0;j<50;j++){
-                    UART_PRINT("%x ", Rx_frame[j]);
-                }
-                UART_PRINT("\n\r");
-            }
-
-//            memset(rcv_msg_buff,0,strlen(rcv_msg_buff));
-//            memset(Rx_frame, 0, max_packet_size);
-        }
-
-//        numBytes = sl_Recv(beaconRxSock, &Rx_frame, max_packet_size, 0);
-//        if(numBytes != SL_ERROR_BSD_EAGAIN)
-//        {
-//            if(numBytes < 0)
-//            {
-//                UART_PRINT("[line:%d, error:%d] %s\n\r", __LINE__, numBytes,
-//                           SL_SOCKET_ERROR);
-//                break;
-//            }
-//
-//            parse_beacon_frame(Rx_frame, &frameInfo, 0);
-//            time_diffs[i] = (frameInfo.timestamp - timestamp)/1000;
-//            i++;
-//            timestamp = frameInfo.timestamp;
-//
-//            if(expectedInterval == 0)
-//            {
-//                expectedInterval = frameInfo.beaconIntervalMs / 1000;
-//            }
-//        }
-
-    }
-
-//    for(i=0;i<numBeacons;i++)
-//    {
-//        if(time_diffs[i] > expectedInterval && i != 0)
-//        {
-//            misses++;
-//        }
-//        UART_PRINT("time diff %i: %i\n\r", i, time_diffs[i]);
-//    }
-//    UART_PRINT("missed beacons: %i\n\r", misses);
-
-    /* Calling 'close' with the socket descriptor,
-    * once operation is finished. */
-    status = sl_Close(beaconRxSock);
-    ASSERT_ON_ERROR(status, SL_SOCKET_ERROR);
-
-    return(0);
-}
-
-int32_t time_drift_test_l3(uint16_t sockPort){
-    /* ALWAYS DECLARE ALL VARIABLES AT TOP OF FUNCTION TO AVOID BUFFER ISSUES */
-    uint32_t buflen = MESSAGE_SIZE;
-    uint8_t rcv_msg_buff[buflen];
-    _i16 sock;
-    uint32_t max_packet_size = 1544;
-    _i16 numBytes;
-    _i16 status;
-    struct SlTimeval_t timeVal;
-    uint8_t Rx_frame[max_packet_size];
-    _u16 broadcast_port = 10012;
-    SlSockAddrIn_t  sAddr;
-    _i16 AddrSize = sizeof(SlSockAddrIn_t);
-    int32_t i;
-
-    timeVal.tv_sec =  30;             // Seconds
-    timeVal.tv_usec = 0;             // Microseconds. 10000 microseconds resolution
-
-    memset(rcv_msg_buff, 0, strlen(rcv_msg_buff));
-    memset(Rx_frame, 0, max_packet_size);
-
-    UART_PRINT("[nnaji msg] sockPort (for transmitting data to AP): %i\n\r", sockPort);
-    UART_PRINT("[nnaji msg] buflen: %i\n\r", buflen);
-
-    sock = sl_Socket(SL_AF_INET, SL_SOCK_DGRAM, 0);
-    ASSERT_ON_ERROR(sock, SL_SOCKET_ERROR);
-
-//    status = sl_SetSockOpt(sock, SL_SOL_SOCKET, SL_SO_RCVTIMEO, (_u8 *)&timeVal, sizeof(timeVal));    // Enable receive timeout
-//    if(status < 0)
-//    {
-//        UART_PRINT("[line:%d, error:%d] %s\n\r", __LINE__, status,
-//                   SL_SOCKET_ERROR);
-//        sl_Close(sock);
-//        return(-1);
-//    }
-
-    sAddr.sin_family = SL_AF_INET;
-    sAddr.sin_port = sl_Htons(broadcast_port);
-    sAddr.sin_addr.s_addr = SL_INADDR_ANY;
-
-    status = sl_Bind(sock, (SlSockAddr_t *)&sAddr, AddrSize);
-    if(status < 0)
-    {
-        UART_PRINT("[line:%d, error:%d] %s\n\r", __LINE__, status,
-                   SL_SOCKET_ERROR);
-        sl_Close(sock);
-        return(-1);
-    }
-
-    while(1)
-    {
-        numBytes = sl_RecvFrom(sock, Rx_frame, max_packet_size, 0, (SlSockAddr_t *)&sAddr, (SlSocklen_t*)&AddrSize);
-        UART_PRINT("[nnaji msg] numBytes: %i\n\r", numBytes);
-        if(numBytes < 0)
-        {
-            UART_PRINT("[line:%d, error:%d] %s\n\r", __LINE__, numBytes,
-                       SL_SOCKET_ERROR);
-            break;
-        }
-
-        UART_PRINT("first 50 bytes: ");
-        for(i=0;i<50;i++){
-            UART_PRINT("%x ", Rx_frame[i]);
-        }
-        UART_PRINT("\n\r");
-
-        UART_PRINT("msg as str: %s\n\r", Rx_frame);
-
-        sleep(1);
-    }
-
-    /* Calling 'close' with the socket descriptor,
-    * once operation is finished. */
-    status = sl_Close(sock);
-    ASSERT_ON_ERROR(status, SL_SOCKET_ERROR);
-
-    return(0);
-}
-
-int32_t parse_beacon_frame(uint8_t * Rx_frame, frameInfo_t * frameInfo, uint8_t printInfo){
-    int32_t hdrOfs = 8;   // proprietary header offset
-    uint32_t timestamp = 0;
+    _u32 hw_timestamp;
     int32_t i = 31;     // last byte index of timestamp in beacon frame
     int32_t j;
+    SlTransceiverRxOverHead_t *transHeader;
+    _i8 buffer[15];
+    memcpy(buffer, &Rx_frame, 14);
+    transHeader = (SlTransceiverRxOverHead_t *)Rx_frame;
+    hw_timestamp = transHeader->Timestamp;
 
-    frameInfo->frameControl = Rx_frame[hdrOfs+1] | (Rx_frame[hdrOfs] << 8);
-    frameInfo->duration = Rx_frame[hdrOfs+3] | (Rx_frame[hdrOfs+2] << 8);
-    memcpy(frameInfo->destAddr,&Rx_frame[hdrOfs+4], 6);
-    memcpy(frameInfo->sourceAddr,&Rx_frame[hdrOfs+10], 6);
-    memcpy(frameInfo->bssid,&Rx_frame[hdrOfs+16], 6);
-    frameInfo->seqCtrl = Rx_frame[hdrOfs+23] | (Rx_frame[hdrOfs+22] << 8);
 
     // can only work with 4 bytes out of the 8 byte timestamp value since this is a 32-bit machine
     while(Rx_frame[hdrOfs+i] == 0 && i > 28)
@@ -1912,18 +1452,26 @@ int32_t parse_beacon_frame(uint8_t * Rx_frame, frameInfo_t * frameInfo, uint8_t 
         timestamp |= Rx_frame[hdrOfs+ i - 4 + j] << (j*8);
 
     frameInfo->timestamp = timestamp;
-    frameInfo->beaconInterval = Rx_frame[hdrOfs+32] | (Rx_frame[hdrOfs+33] << 8); // remember beacon interval is backwards
-    frameInfo->beaconIntervalMs = frameInfo->beaconInterval * 1024;
-    frameInfo->capabilityInfo = Rx_frame[hdrOfs+35] | (Rx_frame[hdrOfs+34] << 8);
-    frameInfo->ssidElemId = Rx_frame[hdrOfs+36];
-    frameInfo->ssidLen = Rx_frame[hdrOfs+37];
-
-    for(j=0;j<frameInfo->ssidLen;j++)
-        frameInfo->ssid[j] = Rx_frame[hdrOfs+38+j];
-    frameInfo->ssid[frameInfo->ssidLen + 1] = '\0';
 
     if(printInfo)
     {
+        frameInfo->frameControl = Rx_frame[hdrOfs+1] | (Rx_frame[hdrOfs] << 8);
+        frameInfo->duration = Rx_frame[hdrOfs+3] | (Rx_frame[hdrOfs+2] << 8);
+        memcpy(frameInfo->destAddr,&Rx_frame[hdrOfs+4], 6);
+        memcpy(frameInfo->sourceAddr,&Rx_frame[hdrOfs+10], 6);
+        memcpy(frameInfo->bssid,&Rx_frame[hdrOfs+16], 6);
+        frameInfo->seqCtrl = Rx_frame[hdrOfs+23] | (Rx_frame[hdrOfs+22] << 8);
+        frameInfo->beaconInterval = Rx_frame[hdrOfs+32] | (Rx_frame[hdrOfs+33] << 8); // remember beacon interval is backwards
+        frameInfo->beaconIntervalMs = frameInfo->beaconInterval * 1024;
+        frameInfo->capabilityInfo = Rx_frame[hdrOfs+35] | (Rx_frame[hdrOfs+34] << 8);
+        frameInfo->ssidElemId = Rx_frame[hdrOfs+36];
+        frameInfo->ssidLen = Rx_frame[hdrOfs+37];
+
+        for(j=0;j<frameInfo->ssidLen;j++)
+            frameInfo->ssid[j] = Rx_frame[hdrOfs+38+j];
+        frameInfo->ssid[frameInfo->ssidLen + 1] = '\0';
+
+
         UART_PRINT("frame control: %04x\n\r", frameInfo->frameControl);
         UART_PRINT("duration: %04x\n\r", frameInfo->duration);
         UART_PRINT("dest addr: %02x:%02x:%02x:%02x:%02x:%02x\n\r", frameInfo->destAddr[0], frameInfo->destAddr[1],
@@ -1941,7 +1489,7 @@ int32_t parse_beacon_frame(uint8_t * Rx_frame, frameInfo_t * frameInfo, uint8_t 
         UART_PRINT("SSID: %s\n\r", frameInfo->ssid);
     }
 
-    return 0;
+    return hw_timestamp;
 }
 
 int32_t q_to_string(queue_t * q, uint8_t * buf)
