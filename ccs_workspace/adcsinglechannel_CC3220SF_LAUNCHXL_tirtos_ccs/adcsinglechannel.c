@@ -50,7 +50,7 @@
 #include "ti_drivers_config.h"
 
 /* ADC sample count */
-#define ADC_SAMPLE_COUNT  (6000)
+#define ADC_SAMPLE_COUNT  (3000)
 
 //these two have to be the same
 // this is 2^28
@@ -67,6 +67,8 @@ float adcValue2MicroVolt[ADC_SAMPLE_COUNT];
 float accel[ADC_SAMPLE_COUNT];
 float interval[ADC_SAMPLE_COUNT];
 long difference[ADC_SAMPLE_COUNT];
+float new_accel[ADC_SAMPLE_COUNT];
+float new_interval[ADC_SAMPLE_COUNT];
 int count = 0;
 
 static Display_Handle display;
@@ -465,7 +467,7 @@ void print_accel_forever_timer_detection(ADC_Handle *adc0, ADC_Handle *adc1, ADC
     float timestamp = 0;
     i = 0;
     float alpha = 0.125;
-    float threshold = 0.15;
+    float threshold = 0.20;
     float beta = 0.25;
     float mov_avg = 1;
     float dev_accel = 0;
@@ -533,13 +535,16 @@ void print_accel_forever_timer_detection(ADC_Handle *adc0, ADC_Handle *adc1, ADC
         mov_avg = (1 - alpha) * (mov_avg) + alpha * (new_accel);
         dev_accel = (1 - beta) * (dev_accel) + beta * (fabs(new_accel - mov_avg));
 
-        Display_printf(display, 0, 0, "Sample: %d, accel: %f, moving avg: %f, dev_accel: %f, Interval: %fms",
-                                                   i, new_accel, mov_avg, dev_accel, ms_interval);
+//        Display_printf(display, 0, 0, "Sample: %d, accel: %f, moving avg: %f, dev_accel: %f, Interval: %fms",
+//                                                   i, new_accel, mov_avg, dev_accel, ms_interval);
 
         if(dev_accel > threshold){
             Display_printf(display, 0, 0, "Detected event");
-            send_data(i, &adc0, &adc1, &adc2, &timer_handle);
-            Display_printf(display, 0, 0, "Detected event");
+//            send_data(i, adc0, adc1, adc2, timer_handle);
+//            Display_printf(display, 0, 0, "Detected event");
+            sleep(2);
+            mov_avg = 1;
+            dev_accel = 0;
         }
     }
 }
@@ -608,23 +613,22 @@ void send_data(int i, ADC_Handle *adc0, ADC_Handle *adc1, ADC_Handle *adc2, Time
     }
 
     // reconstruct array
-    float new_accel[ADC_SAMPLE_COUNT];
-    float new_interval[ADC_SAMPLE_COUNT];
     int count = 0;
+    int new = 0;
 
-    for(j = start; j < ADC_SAMPLE_COUNT; j++){
+    for(j = i; j < ADC_SAMPLE_COUNT; j++){
         new_accel[count] = accel[j];
         new_interval[count] = interval[j];
         count ++;
     }
-    for(j = 0; j < start; j++){
+    for(j = 0; j < i; j++){
         new_accel[count] = accel[j];
         new_interval[count] = interval[j];
         count++;
     }
 
-    for(j=0; j<ADC_SAMPLE_COUNT; j++){
-        Display_printf(display, 0, 0, "%d,%f,%f", j, new_accel[j], new_interval[j]);
+    for(new=0; new<ADC_SAMPLE_COUNT; new++){
+        Display_printf(display, 0, 0, "%d,%f,%f", new, new_accel[new], new_interval[new]);
     }
 
 }
@@ -639,6 +643,7 @@ void *mainThread(void *arg0)
     ADC_Params   params;
     Timer_Handle timer_handle;
     bool csv = 1;
+    float seconds = 10;
 
     Display_setup(&display);
     ADC_setup(&adc0, &adc1, &adc2, &params);

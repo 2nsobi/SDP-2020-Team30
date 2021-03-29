@@ -74,8 +74,12 @@ def read_one_sample_from_board(serial_port):
 
 def get_accel_timestamp_value(sample):
     #returns (accel, timestamp)
-    sample = sample.split(",")
-    return float(sample[-1]), float(sample[-2])
+    try:
+        sample = sample.split(",")
+        return float(sample[-2]), float(sample[-1])
+    except:
+        pass
+        return None
 
 
 def get_all_accel_values(sample):
@@ -92,30 +96,40 @@ def setup_serial():
     return com5
 
 
-def plot_acceleration_from_board(serial_port = None, num_samples = 1000):
+def plot_acceleration_from_board(serial_port = None, num_samples = 2950):
     if serial_port is None:
         serial_port = setup_serial()
 
     accel_values = []
     timestamp_values = []
     for i in range(num_samples):
-        sample = read_one_sample_from_board(serial_port)
-        accel, timestamp = get_accel_timestamp_value(sample)
-        accel_values.append(accel)
+        data = None
+        legit_read = False
+        while(data is None and not legit_read):
+            sample = read_one_sample_from_board(serial_port)
+            data = get_accel_timestamp_value(sample)
+            if data is not None:
+                accel, timestamp = data
+                if accel < 10:
+                    legit_read = True
+        accel_values.append(accel/1.18)
         timestamp_values.append(timestamp)
-        if(i != 0):
-            timestamp_values[i] -= timestamp_values[0]
-    timestamp_values[0] = 0
     plt.figure(0)
     # plt.xlim(0, timestamps[-1])
-    plt.plot(timestamp_values, accel_values, label='acceleration')
-    plt.title('Acceleration vs Time, 2500 samples')
+    plt.ylim(0.25, 1.75)
+    avg = sum(timestamp_values)/len(timestamp_values)
+    x_axis = [i*avg for i in range(len(accel_values))]
+    plt.plot(x_axis, accel_values, label='acceleration')
+    plt.title('Acceleration vs Time, {} samples'.format(num_samples))
     plt.xlabel('Time in ms')
     plt.ylabel('Acceleration in Gs')
     plt.legend()
     plt.show()
+    print(timestamp_values)
+    print(accel_values)
+    print(len(accel_values))
 
-def plot_acceleration_xyx_from_board(serial_port = None, num_samples = 2000):
+def plot_acceleration_xyx_from_board(serial_port = None, num_samples = 1000):
     if serial_port is None:
         serial_port = setup_serial()
 
@@ -145,5 +159,5 @@ def plot_acceleration_xyx_from_board(serial_port = None, num_samples = 2000):
     axs[2].plot(timestamp_values, z_values)
     plt.show()
 
-#plot_acceleration_from_board()
-plot_acceleration_xyx_from_board()
+plot_acceleration_from_board()
+#plot_acceleration_xyx_from_board()
