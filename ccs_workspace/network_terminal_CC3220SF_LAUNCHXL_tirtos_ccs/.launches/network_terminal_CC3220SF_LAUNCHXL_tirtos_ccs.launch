@@ -16,7 +16,7 @@
 <stringAttribute key="com.ti.ccstudio.debug.debugModel.ATTR_PROGRAM.CC3220SF.ccxml.Texas Instruments XDS110 USB Debug Probe/Cortex_M4_0" value="${build_artifact:network_terminal_CC3220SF_LAUNCHXL_tirtos_ccs}"/>
 <stringAttribute key="com.ti.ccstudio.debug.debugModel.ATTR_PROJECT.CC3220SF.ccxml.Texas Instruments XDS110 USB Debug Probe/Cortex_M4_0" value="network_terminal_CC3220SF_LAUNCHXL_tirtos_ccs"/>
 <stringAttribute key="com.ti.ccstudio.debug.debugModel.ATTR_TARGET_CONFIG" value="${target_config_active_default:network_terminal_CC3220SF_LAUNCHXL_tirtos_ccs}"/>
-<stringAttribute key="com.ti.ccstudio.debug.debugModel.MRU_PROGRAM.CC3220SF.ccxml.Texas Instruments XDS110 USB Debug Probe/Cortex_M4_0" value="/home/jgow98/Desktop/SDP-2020-Team30/ccs_workspace/network_terminal_CC3220SF_LAUNCHXL_tirtos_ccs/Debug/network_terminal_CC3220SF_LAUNCHXL_tirtos_ccs.out"/>
+<stringAttribute key="com.ti.ccstudio.debug.debugModel.MRU_PROGRAM.CC3220SF.ccxml.Texas Instruments XDS110 USB Debug Probe/Cortex_M4_0" value="/home/dg/Desktop/SDP-2020-Team30/ccs_workspace/network_terminal_CC3220SF_LAUNCHXL_tirtos_ccs/Debug/network_terminal_CC3220SF_LAUNCHXL_tirtos_ccs.out"/>
 <listAttribute key="org.eclipse.debug.core.MAPPED_RESOURCE_PATHS">
 <listEntry value="/network_terminal_CC3220SF_LAUNCHXL_tirtos_ccs"/>
 </listAttribute>
