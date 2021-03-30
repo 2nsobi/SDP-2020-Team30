@@ -51,7 +51,9 @@ def plot_tcp_data(wrist_mod_data, base_mod_data):
 
     # transform board local_ts axis to beacon_ts axis
     wrist_x_axis = transform_axis(wrist_mod_data["local_ts"], wrist_mod_data["beacon_ts"])
+    wrist_x_axis = [x/1000 for x in wrist_x_axis] # in ms
     base_x_axis = transform_axis(base_mod_data["local_ts"], wrist_mod_data["beacon_ts"])
+    base_x_axis = [x/1000 for x in base_x_axis] # in ms
 
     # chop off some of adc readings to make sure y axis is the same length
     wrist_y_axis = wrist_mod_data["adc"][:len(wrist_x_axis)]
@@ -64,7 +66,7 @@ def plot_tcp_data(wrist_mod_data, base_mod_data):
 
     plt.plot(wrist_x_axis, wrist_y_axis, label="wrist")
     plt.plot(base_x_axis, base_y_axis, label="base")
-    plt.xlabel("Beacon Timestamp")
+    plt.xlabel("Beacon Timestamp in ms")
     plt.ylabel("Relative ADC readings")
     plt.legend()
 

@@ -74,50 +74,54 @@ def linux(plot = True, plot_1 = False):
     # plot_1: indicates whether or not to plot only 1 board's output (cannot be true if plot is false)
     global ENTRY_PORT
 
-    readings = {"wrist":{}, "base":{}}
+    while(1):
 
-    try:
-        if LINUX_HOTSPOT:
-            server_ip = "10.42.0.1"
-            print("Server running at {}".format(server_ip))
-        else:
-            ap = setup_ap()
-            server_ip = ap.ip
-        ENTRY_PORT = 10000
+        readings = {"wrist":{}, "base":{}}
 
-        entry_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  # Create a TCP/IP socket
-        entry_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        entry_address = (server_ip, ENTRY_PORT)
-        entry_socket.bind(entry_address)  # Bind the socket to the port
-        entry_socket.listen(2)  # Listen for incoming connections
-        last_time = time.time()
-
-
-        for i in range(2):
-
-            logger.info('waiting for a connection')
-            connection, client_address = entry_socket.accept()
-
-            logger.info(f'*** connection from {client_address} ***')
-            data = connection.recv(100000)
-            for i in range(10):
-                data += connection.recv(10000000)
-
-            logger.info(data)
-            if plot:
-                name, data = assemble_data_for_plot(data)
-                readings[name] = data
-                if plot_1:
-                    plot_one_board_data(data)
-                    return
+        try:
+            if LINUX_HOTSPOT:
+                server_ip = "10.42.0.1"
+                print("Server running at {}".format(server_ip))
             else:
-                parse_mcu_msg(data, client_address)
-    except Exception as e:
-        logger.info(e)
-        logger.info("Exiting")
-        return
-    entry_socket.close()
-    plot_tcp_data(readings["wrist"], readings["base"])
+                ap = setup_ap()
+                server_ip = ap.ip
+            ENTRY_PORT = 10000
+
+            entry_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  # Create a TCP/IP socket
+            entry_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            entry_address = (server_ip, ENTRY_PORT)
+            entry_socket.bind(entry_address)  # Bind the socket to the port
+            entry_socket.listen(2)  # Listen for incoming connections
+            last_time = time.time()
+
+
+            for i in range(2):
+
+                logger.info('waiting for a connection')
+                connection, client_address = entry_socket.accept()
+
+                logger.info(f'*** connection from {client_address} ***')
+                data = connection.recv(100000)
+                for i in range(10):
+                    data += connection.recv(10000000)
+
+                logger.info(data)
+                if plot:
+                    name, data = assemble_data_for_plot(data)
+                    readings[name] = data
+                    if plot_1:
+                        plot_one_board_data(data)
+                        return
+                else:
+                    parse_mcu_msg(data, client_address)
+        except Exception as e:
+            logger.info(e)
+            logger.info("Exiting")
+            return
+        finally:
+            entry_socket.close()
+            logger.info("Entry socket closed")
+        plot_tcp_data(readings["wrist"], readings["base"])
 
 
 

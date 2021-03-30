@@ -33,7 +33,7 @@
 #define ENTRY_PORT                  10000
 #define BILLION                     1000000000
 #define MESSAGE_SIZE                50
-#define NUM_READINGS                100
+#define NUM_READINGS                800
 #define MAX_RX_PACKET_SIZE          1544
 #define MAX_TX_PACKET_SIZE          100000
 #define BEACON_TIME_TRIGGER         1000           // in ms
