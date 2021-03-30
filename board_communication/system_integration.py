@@ -86,6 +86,7 @@ def linux(plot = True, plot_1 = False):
         ENTRY_PORT = 10000
 
         entry_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  # Create a TCP/IP socket
+        entry_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         entry_address = (server_ip, ENTRY_PORT)
         entry_socket.bind(entry_address)  # Bind the socket to the port
         entry_socket.listen(2)  # Listen for incoming connections
@@ -115,7 +116,7 @@ def linux(plot = True, plot_1 = False):
         logger.info(e)
         logger.info("Exiting")
         return
-
+    entry_socket.close()
     plot_tcp_data(readings["wrist"], readings["base"])
 
 

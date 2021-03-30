@@ -19,15 +19,13 @@
 
 /* custom header files */
 #include "ap_connection.h"
-#include "queue.h"
 
 
 
-#define MAC_FILTER_ARGS           " -f S_MAC -v 58:FB:84:5D:70:05 -e not_equals -a drop -m L1"
-//#define MAC_FILTER_ARGS           " -f S_MAC -v 58:00:e3:43:6b:63 -e not_equals -a drop -m L1"
+//#define MAC_FILTER_ARGS           " -f S_MAC -v 58:FB:84:5D:70:05 -e not_equals -a drop -m L1"
+#define MAC_FILTER_ARGS           " -f S_MAC -v 58:00:e3:43:6b:63 -e not_equals -a drop -m L1"
 
-/* for on-board accelerometer */
-#include <ti/sail/bma2x2/bma2x2.h>
+
 
 typedef union
 {
@@ -58,8 +56,7 @@ int32_t connectToAP()
 
     SlWlanSecParams_t secParams = { .Type = SL_WLAN_SEC_TYPE_WPA,
                                         .Key = (signed char *)key,
-                                        .KeyLen = strlen((const char *)key) };//    int32_t timestamps[2][NUM_READINGS];
-    //    float load_cell_readings[NUM_READINGS];
+                                        .KeyLen = strlen((const char *)key) };
 
 //    SlWlanSecParams_t secParams = { .Type = SL_WLAN_SEC_TYPE_WPA2_PLUS,
 //                                        .Key = (signed char *)key,
@@ -189,529 +186,6 @@ void handle_wifi_disconnection(uint32_t status)
 }
 
 
-uint16_t get_port_for_data_tx()
-{
-    int32_t sock;
-    int32_t status;
-    uint32_t i = 0;
-    SlSockAddr_t        *sa;
-    int32_t addrSize;
-    sockAddr_t sAddr;
-    uint16_t portNumber = ENTRY_PORT;
-    uint8_t notBlocking = 0;
-
-    uint32_t sent_bytes = 0;
-    uint8_t custom_msg[25];
-    sprintf(custom_msg,"cc3220sf ipv4:%u",app_CB.CON_CB.IpAddr);
-    uint32_t msg_size = strlen(custom_msg);
-    uint32_t num_copies = 1;
-    uint32_t bytes_to_send = (num_copies * msg_size);
-
-    uint32_t rcvd_bytes = 0;
-    uint32_t bytes_to_rcv = 5;
-    uint8_t rcvd_msg_buff[bytes_to_rcv+1];
-    uint8_t rcvd_msg[bytes_to_rcv+1];
-    uint16_t receivedPort;
-
-    uint32_t max_retries = 5;
-    uint32_t tries = 0;
-
-    UART_PRINT("\n\rENTRY_PORT: %x\n\r",portNumber);
-
-    /* filling the TCP server socket address */
-    sAddr.in4.sin_family = SL_AF_INET;
-
-    /* Since this is the client's side,
-     * we must know beforehand the IP address
-     * and the port of the server wer'e trying to connect.
-     */
-    sAddr.in4.sin_port = sl_Htons((unsigned short)portNumber);
-    sAddr.in4.sin_addr.s_addr = sl_Htonl((unsigned int)app_CB.CON_CB.GatewayIP);
-
-    sa = (SlSockAddr_t*)&sAddr.in4;
-    addrSize = sizeof(SlSockAddrIn6_t);
-
-    /* Get socket descriptor - this would be the
-     * socket descriptor for the TCP session.
-     */
-    sock = sl_Socket(sa->sa_family, SL_SOCK_STREAM, TCP_PROTOCOL_FLAGS);
-    ASSERT_ON_ERROR(sock, SL_SOCKET_ERROR);
-
-#ifdef SECURE_SOCKET
-
-    SlDateTime_t dateTime;
-    dateTime.tm_day = DEVICE_DATE;
-    dateTime.tm_mon = DEVICE_MONTH;
-    dateTime.tm_year = DEVICE_YEAR;
-
-    sl_DeviceSet(SL_DEVICE_GENERAL, SL_DEVICE_GENERAL_DATE_TIME,
-                 sizeof(SlDateTime_t), (uint8_t *)(&dateTime));
-
-    /* Set the following to enable Server Authentication */
-    sl_SetSockOpt(sock,SL_SOL_SOCKET,SL_SO_SECURE_FILES_CA_FILE_NAME,
-                  ROOT_CA_CERT_FILE, strlen(
-                      ROOT_CA_CERT_FILE));
-
-#ifdef CLIENT_AUTHENTICATION
-    /* Set the following to pass Client Authentication */
-    sl_SetSockOpt(sock,SL_SOL_SOCKET,SL_SO_SECURE_FILES_PRIVATE_KEY_FILE_NAME,
-                  PRIVATE_KEY_FILE, strlen(
-                      PRIVATE_KEY_FILE));
-    sl_SetSockOpt(sock,SL_SOL_SOCKET,SL_SO_SECURE_FILES_CERTIFICATE_FILE_NAME,
-                  TRUSTED_CERT_CHAIN, strlen(
-                      TRUSTED_CERT_CHAIN));
-#endif
-#endif
-
-    status = -1;
-
-    while(status < 0)
-    {
-        /* Calling 'sl_Connect' followed by server's
-         * 'sl_Accept' would start session with
-         * the TCP server. */
-        status = sl_Connect(sock, sa, addrSize);
-        if((status == SL_ERROR_BSD_EALREADY)&& (TRUE == notBlocking))
-        {
-            sleep(1);
-            continue;
-        }
-        else if(status < 0)
-        {
-            UART_PRINT("[line:%d, error:%d] %s, retrying...\n\r", __LINE__, status,
-                       SL_SOCKET_ERROR);
-            sl_Close(sock);
-
-            sleep(1);
-
-            if(tries >= max_retries){
-                UART_PRINT("[nnaji msg] error: unable to connect to AP's entry socket (Gateway IP=%d.%d.%d.%d, port=%s)"
-                        " after %i retries\n\r",
-                        SL_IPV4_BYTE(app_CB.CON_CB.GatewayIP,3),
-                        SL_IPV4_BYTE(app_CB.CON_CB.GatewayIP,2),
-                        SL_IPV4_BYTE(app_CB.CON_CB.GatewayIP,1),
-                        SL_IPV4_BYTE(app_CB.CON_CB.GatewayIP,0),
-                        portNumber,
-                        max_retries);
-                return(-1);
-            }
-
-            tries++;
-            continue;
-        }
-        break;
-    }
-
-    i = 0;
-
-    /////////////////////////////////////////////
-    // send IP of this device to AP
-    /////////////////////////////////////////////
-
-    UART_PRINT("[nnaji] bytes_to_send=%i\n\r", bytes_to_send);
-
-    while(sent_bytes < bytes_to_send)
-    {
-        /* Send packets to the server */
-        status = sl_Send(sock, &custom_msg, msg_size, 0);
-
-        UART_PRINT("[nnaji] return status value from sl_Send(): %i\n\r", status);
-
-        if((status == SL_ERROR_BSD_EAGAIN) && (TRUE == notBlocking))
-        {
-            sleep(1);
-            continue;
-        }
-        else if(status < 0)
-        {
-            UART_PRINT("[line:%d, error:%d] %s\n\r", __LINE__, status,
-                       SL_SOCKET_ERROR);
-            sl_Close(sock);
-            return(-1);
-        }
-        i++;
-        sent_bytes += status;
-        UART_PRINT("[nnaji] bytes sent to far: %i\n\r", sent_bytes);
-    }
-
-    UART_PRINT("Sent %u packets (%u bytes) successfully\n\r",
-               i,
-               sent_bytes);
-
-    ////////////////////////////////////////////////////////
-    // receive port number for socket communication w/ AP
-    ////////////////////////////////////////////////////////
-
-    while(rcvd_bytes < bytes_to_rcv)
-    {
-        status = sl_Recv(sock, &rcvd_msg_buff, bytes_to_rcv+1, 0);
-        if((status == SL_ERROR_BSD_EAGAIN) && (TRUE == notBlocking))
-        {
-            sleep(1);
-            continue;
-        }
-        else if(status < 0)
-        {
-            UART_PRINT("[line:%d, error:%d] %s\n\r", __LINE__, status,
-                       BSD_SOCKET_ERROR);
-            sl_Close(sock);
-            return(-1);
-        }
-        else if(status == 0)
-        {
-            UART_PRINT("TCP Server closed the connection\n\r");
-            break;
-        }
-        else if(status > 0)
-        {
-            strcpy(rcvd_msg, (const char *)rcvd_msg_buff);
-        }
-        rcvd_bytes += status;
-    }
-
-    UART_PRINT("Received %u packets (%u bytes) successfully\n\r",
-               (rcvd_bytes / bytes_to_rcv), rcvd_bytes);
-
-    UART_PRINT("[nnaji] msg recieved: \"%s\"\n\r",&rcvd_msg);
-
-    receivedPort = (uint16_t)atoi((const char *)rcvd_msg);
-    UART_PRINT("[nnaji] port recieved: \"%i\"\n\r",receivedPort);
-
-    /* Calling 'close' with the socket descriptor,
-     * once operation is finished. */
-    status = sl_Close(sock);
-    ASSERT_ON_ERROR(status, SL_SOCKET_ERROR);
-
-    return(receivedPort);
-}
-
-int32_t transmit_data_forever_test(uint16_t sockPort)
-{
-    int32_t sock;
-    int32_t status;
-    uint32_t i = 0;
-    SlSockAddr_t        *sa;
-    int32_t addrSize;
-    sockAddr_t sAddr;
-    uint8_t notBlocking = 0;
-
-    uint32_t sent_bytes = 0;
-    uint32_t buflen = 60;
-    uint8_t custom_msg[buflen];
-
-    /* for on-board accelerometer */
-    /* structure to read the accelerometer data*/
-    /* the resolution is in 8 bit*/
-    struct bma2x2_accel_data_temp sample_xyzt;
-
-    UART_PRINT("\n\rsockPort: %x\n\r",sockPort);
-
-    /* filling the TCP server socket address */
-    sAddr.in4.sin_family = SL_AF_INET;
-
-    /* Since this is the client's side,
-     * we must know beforehand the IP address
-     * and the port of the server wer'e trying to connect.
-     */
-    sAddr.in4.sin_port = sl_Htons((unsigned short)sockPort);
-    sAddr.in4.sin_addr.s_addr = sl_Htonl((unsigned int)app_CB.CON_CB.GatewayIP);
-
-    sa = (SlSockAddr_t*)&sAddr.in4;
-    addrSize = sizeof(SlSockAddrIn6_t);
-
-    /* Get socket descriptor - this would be the
-     * socket descriptor for the TCP session.
-     */
-    sock = sl_Socket(sa->sa_family, SL_SOCK_STREAM, TCP_PROTOCOL_FLAGS);
-    ASSERT_ON_ERROR(sock, SL_SOCKET_ERROR);
-
-#ifdef SECURE_SOCKET
-
-    SlDateTime_t dateTime;
-    dateTime.tm_day = DEVICE_DATE;
-    dateTime.tm_mon = DEVICE_MONTH;
-    dateTime.tm_year = DEVICE_YEAR;
-
-    sl_DeviceSet(SL_DEVICE_GENERAL, SL_DEVICE_GENERAL_DATE_TIME,
-                 sizeof(SlDateTime_t), (uint8_t *)(&dateTime));
-
-    /* Set the following to enable Server Authentication */
-    sl_SetSockOpt(sock,SL_SOL_SOCKET,SL_SO_SECURE_FILES_CA_FILE_NAME,
-                  ROOT_CA_CERT_FILE, strlen(
-                      ROOT_CA_CERT_FILE));
-
-#ifdef CLIENT_AUTHENTICATION
-    /* Set the following to pass Client Authentication */
-    sl_SetSockOpt(sock,SL_SOL_SOCKET,SL_SO_SECURE_FILES_PRIVATE_KEY_FILE_NAME,
-                  PRIVATE_KEY_FILE, strlen(
-                      PRIVATE_KEY_FILE));
-    sl_SetSockOpt(sock,SL_SOL_SOCKET,SL_SO_SECURE_FILES_CERTIFICATE_FILE_NAME,
-                  TRUSTED_CERT_CHAIN, strlen(
-                      TRUSTED_CERT_CHAIN));
-#endif
-#endif
-
-    status = -1;
-
-    while(status < 0)
-    {
-        /* Calling 'sl_Connect' followed by server's
-         * 'sl_Accept' would start session with
-         * the TCP server. */
-        status = sl_Connect(sock, sa, addrSize);
-        if((status == SL_ERROR_BSD_EALREADY)&& (TRUE == notBlocking))
-        {
-            sleep(1);
-            continue;
-        }
-        else if(status < 0)
-        {
-            UART_PRINT("[line:%d, error:%d] %s\n\r", __LINE__, status,
-                       SL_SOCKET_ERROR);
-            sl_Close(sock);
-            return(-1);
-        }
-        break;
-    }
-
-    i = 0;
-
-    /////////////////////////////////////////////
-    // send sine(i) forever to AP
-    /////////////////////////////////////////////
-
-    UART_PRINT("[nnaji msg] buflen: %i\n\r",buflen);
-
-    while(1)
-    {
-        /*reads the accelerometer data in 8 bit resolution*/
-        /*There are different API for reading out the accelerometer data in
-         * 10,14,12 bit resolution*/
-        if(BMA2x2_INIT_VALUE != bma2x2_read_accel_xyzt(&sample_xyzt))
-        {
-            UART_PRINT("Error reading from the accelerometer\n");
-        }
-
-        memset(custom_msg,0,strlen(custom_msg));
-        sprintf(custom_msg,"%i,%.10d,%.10d,%.10d", i, sample_xyzt.x, sample_xyzt.y, sample_xyzt.z);
-
-        /* Send packets to the server */
-        status = sl_Send(sock, &custom_msg, buflen, 0);
-
-        if((status == SL_ERROR_BSD_EAGAIN) && (TRUE == notBlocking))
-        {
-            sleep(1);
-            continue;
-        }
-        else if(status < 0)
-        {
-            UART_PRINT("[line:%d, error:%d] %s\n\r", __LINE__, status,
-                       SL_SOCKET_ERROR);
-            break;
-        }
-
-
-        sent_bytes += status;
-//        UART_PRINT("[nnaji] bytes sent to far (i=%i): %i\n\r", i, sent_bytes);
-        i++;
-    }
-
-    UART_PRINT("Sent %u packets (%u bytes) successfully\n\r",
-               i,
-               sent_bytes);
-
-    /* Calling 'close' with the socket descriptor,
-     * once operation is finished. */
-    status = sl_Close(sock);
-    ASSERT_ON_ERROR(status, SL_SOCKET_ERROR);
-
-    return(0);
-}
-
-int32_t time_drift_test(uint16_t sockPort)
-{
-    int32_t sock;
-    int32_t status;
-    SlSockAddr_t        *sa;
-    int32_t addrSize;
-    sockAddr_t sAddr;
-    uint8_t notBlocking = 0;
-
-    /* ALWAYS DECLARE ALL VARIABLES AT TOP OF FUNCTION TO AVOID BUFFER ISSUES */
-    uint32_t buflen = MESSAGE_SIZE;
-    struct timespec last_time;
-    struct timespec cur_time;
-    uint8_t rcv_msg_buff[buflen];
-    uint8_t send_msg_buff[buflen];
-    uint32_t cur_time_sec = 0;
-    uint32_t cur_time_nsec = 0;
-    uint8_t counting = 0;
-    int32_t send_status;
-
-    UART_PRINT("\n\rsockPort: %x\n\r",sockPort);
-
-    /* filling the TCP server socket address */
-    sAddr.in4.sin_family = SL_AF_INET;
-
-    /* Since this is the client's side,
-     * we must know beforehand the IP address
-     * and the port of the server wer'e trying to connect.
-     */
-    sAddr.in4.sin_port = sl_Htons((unsigned short)sockPort);
-    sAddr.in4.sin_addr.s_addr = sl_Htonl((unsigned int)app_CB.CON_CB.GatewayIP);
-
-    sa = (SlSockAddr_t*)&sAddr.in4;
-    addrSize = sizeof(SlSockAddrIn6_t);
-
-    /* Get socket descriptor - this would be the
-     * socket descriptor for the TCP session.
-     */
-    sock = sl_Socket(sa->sa_family, SL_SOCK_STREAM, TCP_PROTOCOL_FLAGS);
-    ASSERT_ON_ERROR(sock, SL_SOCKET_ERROR);
-
-#ifdef SECURE_SOCKET
-
-    SlDateTime_t dateTime;
-    dateTime.tm_day = DEVICE_DATE;
-    dateTime.tm_mon = DEVICE_MONTH;
-    dateTime.tm_year = DEVICE_YEAR;
-
-    sl_DeviceSet(SL_DEVICE_GENERAL, SL_DEVICE_GENERAL_DATE_TIME,
-                 sizeof(SlDateTime_t), (uint8_t *)(&dateTime));
-
-    /* Set the following to enable Server Authentication */
-    sl_SetSockOpt(sock,SL_SOL_SOCKET,SL_SO_SECURE_FILES_CA_FILE_NAME,
-                  ROOT_CA_CERT_FILE, strlen(
-                      ROOT_CA_CERT_FILE));
-
-#ifdef CLIENT_AUTHENTICATION
-    /* Set the following to pass Client Authentication */
-    sl_SetSockOpt(sock,SL_SOL_SOCKET,SL_SO_SECURE_FILES_PRIVATE_KEY_FILE_NAME,
-                  PRIVATE_KEY_FILE, strlen(
-                      PRIVATE_KEY_FILE));
-    sl_SetSockOpt(sock,SL_SOL_SOCKET,SL_SO_SECURE_FILES_CERTIFICATE_FILE_NAME,
-                  TRUSTED_CERT_CHAIN, strlen(
-                      TRUSTED_CERT_CHAIN));
-#endif
-#endif
-
-    status = -1;
-
-    while(status < 0)
-    {
-        /* Calling 'sl_Connect' followed by server's
-         * 'sl_Accept' would start session with
-         * the TCP server. */
-        status = sl_Connect(sock, sa, addrSize);
-        if((status == SL_ERROR_BSD_EALREADY)&& (TRUE == notBlocking))
-        {
-            sleep(1);
-            continue;
-        }
-        else if(status < 0)
-        {
-            UART_PRINT("[line:%d, error:%d] %s\n\r", __LINE__, status,
-                       SL_SOCKET_ERROR);
-            sl_Close(sock);
-            return(-1);
-        }
-        break;
-    }
-
-    //////////////////////////////////////////////////////
-    // wait to receive requests for system time from AP
-    //////////////////////////////////////////////////////
-
-    memset(rcv_msg_buff,0,strlen(rcv_msg_buff));
-    memset(send_msg_buff,0,strlen(send_msg_buff));
-    UART_PRINT("[nnaji msg] buflen: %i\n\r",buflen);
-
-    clock_gettime(CLOCK_REALTIME,&last_time);
-
-    while(1)
-    {
-        status = sl_Recv(sock, &rcv_msg_buff, buflen, 0);
-        if((status == SL_ERROR_BSD_EAGAIN) && (TRUE == notBlocking))
-        {
-            sleep(1);
-            continue;
-        }
-        else if(status < 0)
-        {
-            UART_PRINT("[line:%d, error:%d] %s\n\r", __LINE__, status,
-                       SL_SOCKET_ERROR);
-            break;
-        }
-
-        if(status > 0){
-            UART_PRINT("msg from laptop: %s, strlen=%i\n\r", rcv_msg_buff, strlen(rcv_msg_buff));
-
-            if(strcmp("get_time",rcv_msg_buff) == 0 && counting)
-            {
-                clock_gettime(CLOCK_REALTIME, &cur_time);
-
-                cur_time_sec = cur_time.tv_sec - last_time.tv_sec;
-                cur_time_nsec = cur_time.tv_nsec - last_time.tv_nsec;
-
-                sprintf(send_msg_buff,"time_sec=%u,time_nsec=%u",cur_time_sec,cur_time_nsec);
-
-                send_status = sl_Send(sock, &send_msg_buff, buflen, 0);
-
-                if(send_status < 0)
-                {
-                    UART_PRINT("[line:%d, error:%d] %s\n\r", __LINE__, send_status,
-                               SL_SOCKET_ERROR);
-                    break;
-                }
-            }
-            else if(strcmp("start_counting",rcv_msg_buff) == 0)
-            {
-                clock_gettime(CLOCK_REALTIME,&last_time);
-
-                UART_PRINT("[nnaji start_counting] time since clock initialization: sec=%u, nsec=%u\n\r",
-                           last_time.tv_sec, last_time.tv_nsec);
-
-                counting = 1;
-
-                strcpy(send_msg_buff,"I am starting to count");
-
-                send_status = sl_Send(sock, &send_msg_buff, buflen, 0);
-
-                if(send_status < 0)
-                {
-                    UART_PRINT("[line:%d, error:%d] %s\n\r", __LINE__, send_status,
-                               SL_SOCKET_ERROR);
-                    break;
-                }
-            }
-            else
-            {
-                strcpy(send_msg_buff,"don't know what to do with this msg");
-
-                send_status = sl_Send(sock, &send_msg_buff, buflen, 0);
-
-                if(send_status < 0)
-                {
-                    UART_PRINT("[line:%d, error:%d] %s\n\r", __LINE__, send_status,
-                               SL_SOCKET_ERROR);
-                    break;
-                }
-            }
-        }
-
-        memset(rcv_msg_buff,0,strlen(rcv_msg_buff));
-        memset(send_msg_buff,0,strlen(send_msg_buff));
-    }
-
-    /* Calling 'close' with the socket descriptor,
-     * once operation is finished. */
-    status = sl_Close(sock);
-    ASSERT_ON_ERROR(status, SL_SOCKET_ERROR);
-
-    return(0);
-}
-
-
 
 //-----------------------------------------------------------------------------------------------------------------------------------------------
 //ADC TESTING
@@ -731,7 +205,7 @@ int32_t time_beacons_and_accelerometer(ADC_Handle *adc0, ADC_Handle *adc1, ADC_H
     int32_t buflen;
     uint32_t i=0;
     uint32_t j=0;
-    _u32 nonBlocking = 1;
+    _u32 nonBlocking = 0;
     uint32_t timestamp = 0;
     uint16_t beacInterval;
     frameInfo_t frameInfo;
@@ -751,6 +225,7 @@ int32_t time_beacons_and_accelerometer(ADC_Handle *adc0, ADC_Handle *adc1, ADC_H
     int32_t no_bytes_count = 0;
     int32_t beacon_count = 0;
     uint32_t badbeacon = 184812040;
+    int x;
 
     int res0, res1, res2;
     uint16_t adcraw0, adcraw1, adcraw2;
@@ -795,46 +270,48 @@ int32_t time_beacons_and_accelerometer(ADC_Handle *adc0, ADC_Handle *adc1, ADC_H
             UART_PRINT("%d beacons recieved\n\r", beacon_count);
             last_local_ts = (int32_t) (cur_time.tv_sec * 1000 + cur_time.tv_nsec / 1000000);
 
+            for(x=0; x<5; x++){
+                //Get accel readings
+                res0 = ADC_convert(*adc0, &adcraw0);
 
-            //Get accel readings
-            res0 = ADC_convert(*adc0, &adcraw0);
+                //make sure readings were successful
+                if (res0 == ADC_STATUS_SUCCESS) {
+                    adc0mv = (float)adcraw0/1.14;
+                }
+                else {
+                    UART_PRINT("CONFIG_ADC_0 convert failed\n\r");
+                }
 
-            //make sure readings were successful
-            if (res0 == ADC_STATUS_SUCCESS) {
-                adc0mv = (float)adcraw0/1.14;
+                res1 = ADC_convert(*adc1, &adcraw1);
+                if (res1 == ADC_STATUS_SUCCESS) {
+                    adc1mv = (float)adcraw1/1.14;
+                }
+                else {
+                    UART_PRINT("CONFIG_ADC_1 convert failed\n\r");
+                }
+
+                res2 = ADC_convert(*adc2, &adcraw2);
+
+                if (res2 == ADC_STATUS_SUCCESS) {
+                    adc2mv = (float)adcraw2/1.14;
+                }
+                else {
+                    UART_PRINT("CONFIG_ADC_2 convert failed\n\r");
+                }
+
+        //            UART_PRINT("adc0mv: %f\n\r", adc0mv);
+
+                timestamps[0][current_ts_index] = (uint32_t) last_beac_ts;
+                timestamps[1][current_ts_index] = (uint32_t) (cur_time.tv_sec * 1000 + cur_time.tv_nsec / 1000000);
+                accel_readings[0][current_ts_index] = adc0mv;
+                accel_readings[1][current_ts_index] = adc1mv;
+                accel_readings[2][current_ts_index] = adc2mv;
+                //UART_PRINT("Beacon_ts interval: %d\n\r", last_beac_ts-frameInfo.timestamp);
+                //UART_PRINT("Beacon_ts: %d\n\r", frameInfo.timestamp);
+
+                current_ts_index = (current_ts_index + 1) % NUM_READINGS;
+                sleep(0.010);   //sleep for 10 ms
             }
-            else {
-                UART_PRINT("CONFIG_ADC_0 convert failed\n\r");
-            }
-
-            res1 = ADC_convert(*adc1, &adcraw1);
-            if (res1 == ADC_STATUS_SUCCESS) {
-                adc1mv = (float)adcraw1/1.14;
-            }
-            else {
-                UART_PRINT("CONFIG_ADC_1 convert failed\n\r");
-            }
-
-            res2 = ADC_convert(*adc2, &adcraw2);
-
-            if (res2 == ADC_STATUS_SUCCESS) {
-                adc2mv = (float)adcraw2/1.14;
-            }
-            else {
-                UART_PRINT("CONFIG_ADC_2 convert failed\n\r");
-            }
-
-    //            UART_PRINT("adc0mv: %f\n\r", adc0mv);
-
-            timestamps[0][current_ts_index] = (uint32_t) last_beac_ts;
-            timestamps[1][current_ts_index] = (uint32_t) (cur_time.tv_sec * 1000 + cur_time.tv_nsec / 1000000);
-            accel_readings[0][current_ts_index] = adc0mv;
-            accel_readings[1][current_ts_index] = adc1mv;
-            accel_readings[2][current_ts_index] = adc2mv;
-            //UART_PRINT("Beacon_ts interval: %d\n\r", last_beac_ts-frameInfo.timestamp);
-            //UART_PRINT("Beacon_ts: %d\n\r", frameInfo.timestamp);
-
-            current_ts_index = (current_ts_index + 1) % NUM_READINGS;
 
 
         }
@@ -992,7 +469,7 @@ int32_t time_beacons_and_load_cell(ADC_Handle *adc0)
     int32_t buflen;
     uint32_t i=0;
     uint32_t j=0;
-    _u32 nonBlocking = 1;
+    _u32 nonBlocking = 0;
     uint32_t timestamp = 0;
     uint16_t beacInterval;
     frameInfo_t frameInfo;
@@ -1020,6 +497,7 @@ int32_t time_beacons_and_load_cell(ADC_Handle *adc0)
     int res0;
     uint16_t adcraw0;
     float adc0mv;
+    int x;
 
     /* filling the TCP server socket address */
     sAddr.in4.sin_family = SL_AF_INET;
@@ -1068,32 +546,34 @@ int32_t time_beacons_and_load_cell(ADC_Handle *adc0)
             UART_PRINT("%d beacons recieved\n\r", beacon_count);
             last_local_ts = (int32_t) (cur_time.tv_sec * 1000 + cur_time.tv_nsec / 1000000);
 
+            for(x=0; x<5; x++){
+                //Get accel readings
+                res0 = ADC_convert(*adc0, &adcraw0);
 
-            //Get accel readings
-            res0 = ADC_convert(*adc0, &adcraw0);
+                //make sure readings were successful
+                if (res0 == ADC_STATUS_SUCCESS) {
+                    adc0mv = (float)adcraw0/1.14;
+                }
+                else {
+                    UART_PRINT("CONFIG_ADC_0 convert failed\n\r");
+                }
 
-            //make sure readings were successful
-            if (res0 == ADC_STATUS_SUCCESS) {
-                adc0mv = (float)adcraw0/1.14;
+                //UART_PRINT("adc0mv: %f\n\r", adc0mv);
+
+                timestamps[0][current_ts_index] = (uint32_t) last_beac_ts;
+                timestamps[1][current_ts_index] = (uint32_t) (cur_time.tv_sec * 1000 + cur_time.tv_nsec / 1000000);
+                load_cell_readings[current_ts_index] = adc0mv;
+                //UART_PRINT("Beacon_ts interval: %d\n\r", last_beac_ts-frameInfo.timestamp);
+                //UART_PRINT("Beacon_ts:\t%u\n\r", frameInfo.timestamp);
+                UART_PRINT("Beacon_ts in array: %u\n\r", timestamps[0][current_ts_index]);
+        //        UART_PRINT("HW timestamp:\t%ul\n\r", hw_timestamp);
+                //UART_PRINT("Load cell reading: %f\n\r", load_cell_readings[current_ts_index]);
+
+                current_ts_index = (current_ts_index + 1) % NUM_READINGS;
+        //        last_beac_ts = frameInfo.timestamp;
+                last_hw_timestamp = hw_timestamp;
+                sleep(0.010);   //sleep for 10 ms
             }
-            else {
-                UART_PRINT("CONFIG_ADC_0 convert failed\n\r");
-            }
-
-            //UART_PRINT("adc0mv: %f\n\r", adc0mv);
-
-            timestamps[0][current_ts_index] = (uint32_t) last_beac_ts;
-            timestamps[1][current_ts_index] = (uint32_t) (cur_time.tv_sec * 1000 + cur_time.tv_nsec / 1000000);
-            load_cell_readings[current_ts_index] = adc0mv;
-            //UART_PRINT("Beacon_ts interval: %d\n\r", last_beac_ts-frameInfo.timestamp);
-            //UART_PRINT("Beacon_ts:\t%u\n\r", frameInfo.timestamp);
-            UART_PRINT("Beacon_ts in array: %u\n\r", timestamps[0][current_ts_index]);
-    //        UART_PRINT("HW timestamp:\t%ul\n\r", hw_timestamp);
-            //UART_PRINT("Load cell reading: %f\n\r", load_cell_readings[current_ts_index]);
-
-            current_ts_index = (current_ts_index + 1) % NUM_READINGS;
-    //        last_beac_ts = frameInfo.timestamp;
-            last_hw_timestamp = hw_timestamp;
 
 
         }
@@ -1506,25 +986,6 @@ _u32 parse_beacon_frame(uint8_t * Rx_frame, frameInfo_t * frameInfo, uint8_t pri
 
     return hw_timestamp;
 }
-
-int32_t q_to_string(queue_t * q, uint8_t * buf)
-{
-    int32_t i = 0;
-    int32_t q_i;
-    int32_t buf_i = 0;
-    uint8_t reading[61]; // max reading to string length is 60: "(4294967296, 4294967296, 4294967296, 4294967296, 4294967296)"
-
-    for(i=0;i<q->size;i++)
-    {
-        q_i = qIndex(q, i);
-        sprintf(reading, "%u,%u,%i,%i,%i|", q->arr[q_i][0], q->arr[q_i][1], q->arr[q_i][2], q->arr[q_i][3], q->arr[q_i][4]);
-        strcpy(&buf[buf_i], reading);
-        buf_i += strlen(reading); // +2 for comma and space
-    }
-
-    return 0;
-}
-
 
 int32_t ts_to_string(uint32_t timestamps[][NUM_READINGS], float load_cell_readings[], uint32_t current_ts_index, uint8_t * buf)
 {

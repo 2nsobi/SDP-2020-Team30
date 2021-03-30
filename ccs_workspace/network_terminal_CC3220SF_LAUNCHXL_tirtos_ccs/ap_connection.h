@@ -11,7 +11,6 @@
 #include <stdint.h>
 
 #include "network_terminal.h"
-#include "queue.h"
 
 #define ASSERT_AND_CLEAN_CONNECT_NO_FREE(ret, errortype, ConnectParams)\
         {\
@@ -66,19 +65,7 @@ int32_t time_beacons_and_accelerometer(ADC_Handle *adc0, ADC_Handle *adc1, ADC_H
 
 int32_t accel_to_string(uint32_t timestamps[][NUM_READINGS], float accel_readings[][NUM_READINGS], uint32_t current_ts_index, uint8_t * buf);
 
-uint16_t get_port_for_data_tx();
-
-int32_t transmit_data_forever_test(uint16_t sockPort);
-
-int32_t time_drift_test(uint16_t sockPort);
-
-
 _u32 parse_beacon_frame(uint8_t * Rx_frame, frameInfo_t * frameInfo, uint8_t printInfo);
-
-
-int32_t q_to_string(queue_t * q, uint8_t * buf);
-
-int32_t ts_to_string(uint32_t timestamps[][NUM_READINGS], float load_cell_readings[], uint32_t current_ts_index, uint8_t * buf);
 
 int32_t test_time_beac_sync();
 
