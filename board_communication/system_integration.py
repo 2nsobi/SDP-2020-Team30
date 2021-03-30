@@ -113,6 +113,8 @@ def linux(plot = True, plot_1 = False):
                 parse_mcu_msg(data, client_address)
     except Exception as e:
         logger.info(e)
+        logger.info("Exiting")
+        return
 
     plot_tcp_data(readings["wrist"], readings["base"])
 
@@ -137,12 +139,12 @@ def assemble_data_for_plot(data):
             reading = reading.split(",")
             if len(reading) < 2:
                 continue
-            beacon_ts = reading[0]
-            local_ts = reading[1]
+            beacon_ts = int(reading[0])
+            local_ts = int(reading[1])
             if int(beacon_ts) == 3200171710 or int(local_ts) == 3200171710 or int(beacon_ts) == 0 or int(local_ts) == 0:
                 continue
             if len(reading) == 3:  # from the base module
-                load_cell = reading[3]
+                load_cell = float(reading[2])
                 dict["beacon_ts"].append(beacon_ts)
                 dict["local_ts"].append(local_ts)
                 dict["adc"].append(load_cell)
@@ -153,9 +155,9 @@ def assemble_data_for_plot(data):
                 if base_data:
                     raise Exception
 
-                x = reading[3]
-                y = reading[4]
-                z = reading[5]
+                x = float(reading[2])
+                y = float(reading[3])
+                z = float(reading[4])
                 accel = math.sqrt(math.pow(x, 2) + math.pow(y, 2) + math.pow(z, 2))
                 dict["beacon_ts"].append(beacon_ts)
                 dict["local_ts"].append(local_ts)
@@ -163,6 +165,7 @@ def assemble_data_for_plot(data):
     except Exception as e:
         logger.info("Unexpected data format, exception:")
         logger.info(e)
+        logger.info(reading)
 
     if len(dict["beacon_ts"]) == len(dict["local_ts"]) == len(dict["adc"]):
         name = ""
