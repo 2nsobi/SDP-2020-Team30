@@ -108,7 +108,9 @@ def linux(plot = True, plot_1 = False):
                 logger.info(data)
                 if plot:
                     name, data = assemble_data_for_plot(data)
+                    logger.info(data.keys())
                     readings[name] = data
+                    logger.info(readings)
                     if plot_1:
                         plot_one_board_data(data)
                         return
@@ -121,6 +123,11 @@ def linux(plot = True, plot_1 = False):
         finally:
             entry_socket.close()
             logger.info("Entry socket closed")
+        logger.info("Contents of readings: ----------------------")
+        for key in readings:
+            logger.info(key)
+            logger.info(readings[key].keys())
+        logger.info("-----------------------------------------")
         plot_tcp_data(readings["wrist"], readings["base"])
 
 
@@ -139,6 +146,7 @@ def assemble_data_for_plot(data):
     data = data.replace("b'", "")
     data = data.replace("'", "")
     data = data.split("|")
+    data = data[:-1]
     try:
         for reading in data:
             reading = reading.split(",")
@@ -154,16 +162,20 @@ def assemble_data_for_plot(data):
                 dict["local_ts"].append(local_ts)
                 dict["adc"].append(load_cell)
                 base_data = True
-            elif len(reading) == 5: #from the wrist module
+            elif len(reading) == 4: #from the wrist module
 
                 #base data should not be true, this means that we got an array of length 3 and an array of length 5
                 if base_data:
                     raise Exception
+                if int(reading[3]) != 0:
+                    logger.info("Last value in data was not zero, invalid wrist data")
+                    raise Exception
 
-                x = float(reading[2])
-                y = float(reading[3])
-                z = float(reading[4])
-                accel = math.sqrt(math.pow(x, 2) + math.pow(y, 2) + math.pow(z, 2))
+                # x = float(reading[2])
+                # y = float(reading[3])
+                # z = float(reading[4])
+                accel_sqr = float(reading[2])
+                accel = math.sqrt(accel_sqr)
                 dict["beacon_ts"].append(beacon_ts)
                 dict["local_ts"].append(local_ts)
                 dict["adc"].append(accel)

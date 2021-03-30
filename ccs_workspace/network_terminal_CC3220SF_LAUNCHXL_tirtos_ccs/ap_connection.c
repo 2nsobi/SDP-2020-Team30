@@ -36,7 +36,7 @@ typedef union
 uint8_t Tx_data[MAX_TX_PACKET_SIZE];
 uint32_t timestamps[2][NUM_READINGS];
 float load_cell_readings[1];
-float accel_readings[3][NUM_READINGS];
+float accel_readings[NUM_READINGS];
 uint32_t hw_timestamps[1];
 
 int32_t connectToAP()
@@ -226,6 +226,7 @@ int32_t time_beacons_and_accelerometer(ADC_Handle *adc0, ADC_Handle *adc1, ADC_H
     int32_t beacon_count = 0;
     uint32_t badbeacon = 184812040;
     int x;
+    float accel_sqr;
 
     int res0, res1, res2;
     uint16_t adcraw0, adcraw1, adcraw2;
@@ -307,9 +308,9 @@ int32_t time_beacons_and_accelerometer(ADC_Handle *adc0, ADC_Handle *adc1, ADC_H
 
             timestamps[0][current_ts_index] = (uint32_t) last_beac_ts;
             timestamps[1][current_ts_index] = (uint32_t) (cur_time.tv_sec * 1000 + cur_time.tv_nsec / 1000000);
-            accel_readings[0][current_ts_index] = adc0mv;
-            accel_readings[1][current_ts_index] = adc1mv;
-            accel_readings[2][current_ts_index] = adc2mv;
+            //calculate (acceleration)^2
+            accel_sqr = (adc0mv * adc0mv) + (adc1mv * adc1mv) + (adc2mv * adc2mv);
+            accel_readings[current_ts_index] = accel_sqr;
             //UART_PRINT("Beacon_ts interval: %d\n\r", last_beac_ts-frameInfo.timestamp);
             //UART_PRINT("Beacon_ts: %d\n\r", frameInfo.timestamp);
 
@@ -1015,20 +1016,20 @@ int32_t ts_to_string(uint32_t timestamps[][NUM_READINGS], float load_cell_readin
 
 
 
-int32_t accel_to_string(uint32_t timestamps[][NUM_READINGS], float accel_readings[][NUM_READINGS], uint32_t current_ts_index, uint8_t * buf)
+int32_t accel_to_string(uint32_t timestamps[][NUM_READINGS], float accel_readings[], uint32_t current_ts_index, uint8_t * buf)
 {
     int32_t i = 0;
     int32_t buf_i = 0;
     uint8_t reading[65]; // max reading to string length is 24: "(4294967296,4294967296,4294967296,4294967296,4294967296|\'0')"
 
     for(i=current_ts_index; i<NUM_READINGS; i++){
-        sprintf(reading, "%u,%u,%f,%f,%f|", timestamps[0][i], timestamps[1][i], accel_readings[0][i], accel_readings[1][i], accel_readings[2][i]);
+        sprintf(reading, "%u,%u,%f,0|", timestamps[0][i], timestamps[1][i], accel_readings[i]);
         strcpy(&buf[buf_i], reading);
         buf_i += strlen(reading);
     }
 
     for(i=0; i<current_ts_index; i++){
-        sprintf(reading, "%u,%u,%f,%f,%f|", timestamps[0][i], timestamps[1][i], accel_readings[0][i], accel_readings[1][i], accel_readings[2][i]);
+        sprintf(reading, "%u,%u,%f,0|", timestamps[0][i], timestamps[1][i], accel_readings[i]);
         strcpy(&buf[buf_i], reading);
         buf_i += strlen(reading);
     }

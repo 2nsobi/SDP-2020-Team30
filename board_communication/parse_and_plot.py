@@ -48,12 +48,18 @@ def plot_tcp_data(wrist_mod_data, base_mod_data):
     # wrist_mod_data and base_mod_data are both dicts of the form
     # {"adc":[array of adc readings], "loacl_ts":[array of local_ts], "beacon_ts": [array of beacon ts]}
     # the length of the 3 arrays is the same within the dict, but might be different between dicts
+    print(wrist_mod_data.keys())
+    print(base_mod_data.keys())
+
+    # remove outliers in beacon ts
+    wrist_mod_data["beacon_ts"] = remove_outliers_from_beacon_ts(wrist_mod_data["beacon_ts"])
+    base_mod_data["beacon_ts"] = remove_outliers_from_beacon_ts(base_mod_data["beacon_ts"])
 
     # transform board local_ts axis to beacon_ts axis
     wrist_x_axis = transform_axis(wrist_mod_data["local_ts"], wrist_mod_data["beacon_ts"])
-    wrist_x_axis = [x/1000 for x in wrist_x_axis] # in ms
+    wrist_x_axis = [(x-wrist_x_axis[0])/1000 for x in wrist_x_axis] # in ms
     base_x_axis = transform_axis(base_mod_data["local_ts"], wrist_mod_data["beacon_ts"])
-    base_x_axis = [x/1000 for x in base_x_axis] # in ms
+    base_x_axis = [(x-base_x_axis[0])/1000 for x in base_x_axis] # in ms
 
     # chop off some of adc readings to make sure y axis is the same length
     wrist_y_axis = wrist_mod_data["adc"][:len(wrist_x_axis)]
@@ -72,6 +78,21 @@ def plot_tcp_data(wrist_mod_data, base_mod_data):
 
     plt.show()
     return
+
+
+def remove_outliers_from_beacon_ts(beacons):
+    # recieves an array of beacon timestamps, returns an array of beacon timestamps of the same length where any
+    # outliers have been replaced with the beacon_ts right before it
+
+
+    for i in range(1, len(beacons)):
+        if beacons[i] < beacons[i-1]:
+            beacons[i] = beacons[i-1]
+
+    return beacons
+
+
+
 
 def plot_one_board_data(data):
     # this is like the function plot_tcp_data above except it only plots one board's data
@@ -130,14 +151,17 @@ def transform_axis(local_ts, beacon_ts):
         last_beacon_value = current_beacon_value
 
 
-
+    end_beac_value = 0
     for k in range(1, len(beacon_tuples)):
         start_tuple = beacon_tuples[k-1]
         end_tuple = beacon_tuples[k]
         start_beac_index, start_beac_value = start_tuple
         end_beac_index, end_beac_value = end_tuple
+        if end_beac_index >= len(local_ts):
+            break
 
         for i in range(start_beac_index, end_beac_index):
+            print(start_beac_index, end_beac_index, len(local_ts), len(beacon_ts))
             transformed_value = (local_ts[i] - local_ts[start_beac_index])/(local_ts[end_beac_index] - local_ts[start_beac_index])
             transformed_value *= (end_beac_value - start_beac_value)
             transformed_value += start_beac_value

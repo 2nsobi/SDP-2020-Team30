@@ -63,7 +63,7 @@ int32_t time_beacons_and_load_cell(ADC_Handle *adc0);
 
 int32_t time_beacons_and_accelerometer(ADC_Handle *adc0, ADC_Handle *adc1, ADC_Handle *adc2);
 
-int32_t accel_to_string(uint32_t timestamps[][NUM_READINGS], float accel_readings[][NUM_READINGS], uint32_t current_ts_index, uint8_t * buf);
+int32_t accel_to_string(uint32_t timestamps[][NUM_READINGS], float accel_readings[NUM_READINGS], uint32_t current_ts_index, uint8_t * buf);
 
 _u32 parse_beacon_frame(uint8_t * Rx_frame, frameInfo_t * frameInfo, uint8_t printInfo);
 
