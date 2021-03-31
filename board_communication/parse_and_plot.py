@@ -88,6 +88,8 @@ def remove_outliers_from_beacon_ts(beacons):
     for i in range(1, len(beacons)):
         if beacons[i] < beacons[i-1]:
             beacons[i] = beacons[i-1]
+        elif abs(beacons[i]-beacons[i-1]) > 1000000:
+            beacons[i] = beacons[i-1]
 
     return beacons
 

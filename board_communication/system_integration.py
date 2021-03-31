@@ -6,6 +6,7 @@ import datetime
 import logging
 import math
 from board_communication.parse_and_plot import plot_tcp_data, plot_one_board_data
+from board_communication.windows_ap import WindowsSoftAP
 
 WINDOWS = True
 ENTRY_PORT = 10000
@@ -131,6 +132,69 @@ def linux(plot = True, plot_1 = False):
         plot_tcp_data(readings["wrist"], readings["base"])
 
 
+def windows(plot = True, plot_1 = False):
+    # plot: indicates whether or not to plot
+    # plot_1: indicates whether or not to plot only 1 board's output (cannot be true if plot is false)
+    global ENTRY_PORT
+
+    while(1):
+
+        readings = {"wrist":{}, "base":{}}
+
+        try:
+            ap = WindowsSoftAP()
+            # ap.start_ap()
+            server_ip = ap.get_ipv4()
+            if server_ip is None:
+                logger.info('server_ip is None')
+                quit()
+            else:
+                logger.info("Windows AP started with IP addr {}".format(server_ip))
+            ENTRY_PORT = 10000
+
+            entry_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  # Create a TCP/IP socket
+            entry_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            entry_address = (server_ip, ENTRY_PORT)
+            entry_socket.bind(entry_address)  # Bind the socket to the port
+            entry_socket.listen(2)  # Listen for incoming connections
+            last_time = time.time()
+
+
+            for i in range(2):
+
+                logger.info('waiting for a connection')
+                connection, client_address = entry_socket.accept()
+
+                logger.info(f'*** connection from {client_address} ***')
+                data = connection.recv(100000)
+                for i in range(10):
+                    data += connection.recv(10000000)
+
+                logger.info(data)
+                if plot:
+                    name, data = assemble_data_for_plot(data)
+                    logger.info(data.keys())
+                    readings[name] = data
+                    logger.info(readings)
+                    if plot_1:
+                        plot_one_board_data(data)
+                        return
+                else:
+                    parse_mcu_msg(data, client_address)
+        except Exception as e:
+            logger.info(e)
+            logger.info("Exiting")
+            return
+        finally:
+            entry_socket.close()
+            logger.info("Entry socket closed")
+        logger.info("Contents of readings: ----------------------")
+        for key in readings:
+            logger.info(key)
+            logger.info(readings[key].keys())
+        logger.info("-----------------------------------------")
+        plot_tcp_data(readings["wrist"], readings["base"])
+
 
 def assemble_data_for_plot(data):
     # from wrist module, readings will be in the format:
@@ -239,7 +303,7 @@ def store_data(uid, beacon_timestamp, local_time):
 
 def run_experiment():
     setup()
-    linux()
+    windows()
 
 
 def cleanup():
