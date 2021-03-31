@@ -70,7 +70,12 @@ def combine_board_data(board_1_dict, board_2_dict):
 
 
 def total_drift(combined_ts, verbose = True, graph_drift = True, graph_elapsed = True, limit = None):
-    # takes a combined dict from combine_board_data and gets the total drift between the local clocks over the
+    # takes a combined dict from combine_board_data
+    # (dict where the keys are the beacon
+    #     # timestamps and the values are a dict where the key is the board number (either 1 or 2) and the value is the
+    #     # local timestamp. )
+
+    # and gets the total drift between the local clocks over the
     # entire experiment.  The drift is measured by abs((clock1_end - clock1_start) - (clock2_end - clock2_start))
     # the time of the experiment is measured by lastbeacon - firstbeacon
     beacons = list(combined_ts.keys())
@@ -96,9 +101,15 @@ def total_drift(combined_ts, verbose = True, graph_drift = True, graph_elapsed =
     if verbose:
         print("Local drift in ms:\t{}".format(local_drift_ms))
 
-    clock1_elapsed = [(combined_ts[x][1] - clock1_start)/1000 for x in beacons]
-    clock2_elapsed = [(combined_ts[x][2] - clock2_start)/1000 for x in beacons]
+    clock1_elapsed = [(combined_ts[x][1] - clock1_start) for x in beacons] # in ms
+    clock2_elapsed = [(combined_ts[x][2] - clock2_start) for x in beacons] # in ms
     drift_over_time = [c1 - c2 for c1, c2 in zip(clock1_elapsed, clock2_elapsed)]
+    print("Clock1 elapsed (ms)")
+    print(clock1_elapsed[:50])
+    print("Clock2 elapsed (ms)")
+    print(clock2_elapsed[:50])
+    print("Drift between elapsed:")
+    print(drift_over_time[:50])
     beacons_s = [(i - first_beacon) / (1000000 * 1.024) for i in beacons]  # in seconds
 
     if verbose:
@@ -127,6 +138,50 @@ def total_drift(combined_ts, verbose = True, graph_drift = True, graph_elapsed =
         plt.ylabel("Drift between the clocks (ms)")
         plt.title("Drift between 2 CC3220SF Local Clocks over a {:4f}-minute experiment".format(experiment_time_min))
         plt.show()
+
+        # graph drift again but take out jumps in elapsed time more than 150ms
+        new_drift = []
+        drift_beacs = []
+        for i in range(1, len(beacons)):
+            c1_int = clock1_elapsed[i] - clock1_elapsed[i-1]
+            c2_int = clock2_elapsed[i] - clock2_elapsed[i-1]
+            if c1_int < 150 and c2_int <150:
+                new_drift.append(c1_int - c2_int)
+                drift_beacs.append(beacons[i-1])
+        plt.plot(drift_beacs, new_drift)
+        plt.xlabel("Beacon time (s)")
+        plt.ylabel("Drift between the clocks (ms)")
+        plt.title("Drift between 2 Local Clocks excluding periods longer than 150ms\n"
+                  "over a {:4f}-minute experiment".format(experiment_time_min))
+        plt.show()
+
+    # graph delta t (over 1 beacon) over the experiment
+
+    #get intervals
+    clock_1_intervals = []
+    clock_2_intervals = []
+    int_beacons = []
+    for i in range(1, len(beacons)):
+        c1_int = combined_ts[beacons[i]][1] - combined_ts[beacons[i-1]][1]
+        c2_int = combined_ts[beacons[i]][2] - combined_ts[beacons[i - 1]][2]
+        if c1_int < 200 and c2_int < 200:
+            clock_1_intervals.append(c1_int)
+            clock_2_intervals.append(c2_int)
+            int_beacons.append(beacons[i-1])
+    plt.plot(int_beacons, clock_1_intervals, 'r', label="clock1")
+    plt.plot(int_beacons, clock_2_intervals, 'b', label="clock2")
+    plt.xlabel("Elapsed time in seconds based on beacon timestamps")
+    plt.ylabel("Elapsed time in seconds on local clocks since last beacon")
+    plt.title("Beacon Timestamps vs Local Clock interval over {} minutes".format(experiment_time_min))
+    plt.legend()
+    plt.show()
+
+    plt.hist(clock_1_intervals, bins=20)
+    plt.title("Elapsed time on one clock between beacons")
+    plt.ylabel("Frequency")
+    plt.xlabel("Elapsed time on local clock between 102.4ms beacons (ms)")
+    plt.show()
+
 
 
     return experiment_time_s, local_drift_ms
@@ -174,11 +229,11 @@ def drift_over_x_beacons(combined_ts, num_beacons = None, absolute = True):
 
     plt.hist(drift_between, bins=30)
     if absolute:
-        plt.title("Absolute Value of Drift between two CC3220SF local clocks over 1 100ms beacon interval,\n{} trials".format(trials))
+        plt.title("Absolute Value of Drift Between Two Local Clocks \nover 102.4ms Beacon Intervals, {} trials".format(trials))
     else:
-        plt.title("Relative Drift between two CC3220SF local clocks over 1 100ms beacon interval,\n{} trials".format(trials))
-    plt.xlabel("Drift in ms")
-    plt.ylabel("frequency")
+        plt.title("Relative Drift Between Two Local Clocks \nover 102.4ms Beacon Intervals, {} trials".format(trials))
+    plt.xlabel("Drift (ms)")
+    plt.ylabel("Frequency")
     plt.show()
 
 
@@ -230,7 +285,7 @@ def analyze_beacons(beacons):
 
 def local_clock_test(folder_name):
     folder_name = "2_boards_2021-03-23_14;33;16"
-    # folder_name = "2021-03-24_22;32;48"
+    #folder_name = "2021-03-24_22;32;48"
     a, b = retrive_2_board_data(folder_name)
     c = combine_board_data(a, b)
     total_drift(c, graph_elapsed=True)
@@ -281,7 +336,9 @@ def analyze_hw_ts(filename):
         hw_intervals.append(hw_interval)
         loc_intervals.append(loc_interval)
     trials = len(hw_intervals)
-
+    print(hw_intervals)
+    print(max(hw_intervals))
+    print(min(hw_intervals))
     #plot a histogram of intervals between hw_timestamps (gives an idea of how consistently the beacons arrive)
     plt.hist(hw_intervals, bins=30)
     plt.title("Intervals between hardware timestamps,\n{} trials".format(trials))
@@ -301,6 +358,10 @@ def analyze_hw_ts(filename):
 
 if __name__ == '__main__':
     #folder_name = "2021-03-29_11;36;06.txt"
-    folder_name = "2021-03-29_12;53;26.txt"
+    #folder_name = "2021-03-29_12;53;26.txt"
     #beacon_recv_percent(folder_name, True)
-    analyze_hw_ts(folder_name)
+    #folder_name = "2021-03-25_19;39;18"
+    #beacon_recv_percent(folder_name)
+    #analyze_hw_ts(folder_name)
+    folder_name = "2_boards_2021-03-23_14;33;16"
+    local_clock_test(folder_name)
