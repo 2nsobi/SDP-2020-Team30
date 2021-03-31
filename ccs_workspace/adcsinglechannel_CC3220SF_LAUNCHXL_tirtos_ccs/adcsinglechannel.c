@@ -174,9 +174,9 @@ void print_N_accel_samples(ADC_Handle *adc0, ADC_Handle *adc1, ADC_Handle *adc2)
     unsigned long timer_value_now = 0;
     for (i = 0; i < ADC_SAMPLE_COUNT; i++) {
         //Get accel readings
-        res0 = ADC_convert(*adc0, &adcValue0[i], &timer_value_now);
-        res1 = ADC_convert(*adc1, &adcValue1[i], &timer_value_now);
-        res2 = ADC_convert(*adc2, &adcValue2[i], &timer_value_now);
+        res0 = ADC_convert(*adc0, &adcValue0[i]);
+        res1 = ADC_convert(*adc1, &adcValue1[i]);
+        res2 = ADC_convert(*adc2, &adcValue2[i]);
 
         //make sure readings were successful
         if (res0 == ADC_STATUS_SUCCESS) {
@@ -213,9 +213,9 @@ void store_one_accel_sample(ADC_Handle *adc0, ADC_Handle *adc1, ADC_Handle *adc2
     int res0, res1, res2;
     unsigned long timer_value_now = 0;
     //Get accel readings
-    res0 = ADC_convert(*adc0, &adcValue0[count], &timer_value_now);
-    res1 = ADC_convert(*adc1, &adcValue1[count], &timer_value_now);
-    res2 = ADC_convert(*adc2, &adcValue2[count], &timer_value_now);
+    res0 = ADC_convert(*adc0, &adcValue0[count]);
+    res1 = ADC_convert(*adc1, &adcValue1[count]);
+    res2 = ADC_convert(*adc2, &adcValue2[count]);
 
     //make sure readings were successful
     if (res0 == ADC_STATUS_SUCCESS) {
@@ -278,9 +278,9 @@ void print_N_accel_samples_timer(ADC_Handle *adc0, ADC_Handle *adc1, ADC_Handle 
     float total_time;
     for (i = 0; i < ADC_SAMPLE_COUNT; i++) {
         //Get accel readings
-        res0 = ADC_convert(*adc0, &adcValue0[i], &timer_value_now);
-        res1 = ADC_convert(*adc1, &adcValue1[i], &timer_value_now);
-        res2 = ADC_convert(*adc2, &adcValue2[i], &timer_value_now);
+        res0 = ADC_convert(*adc0, &adcValue0[i]);
+        res1 = ADC_convert(*adc1, &adcValue1[i]);
+        res2 = ADC_convert(*adc2, &adcValue2[i]);
 
         timer_clock_before = timer_clock_now;
         timer_clock_now = Timer_getCount(*timer_handle);
@@ -333,9 +333,9 @@ void print_accel_samples_seconds(ADC_Handle *adc0, ADC_Handle *adc1, ADC_Handle 
     float milliseconds = seconds * 1000;
     while(total_time < milliseconds){
         //Get accel readings
-        res0 = ADC_convert(*adc0, &adcValue0[i], &timer_value_now);
-        res1 = ADC_convert(*adc1, &adcValue1[i], &timer_value_now);
-        res2 = ADC_convert(*adc2, &adcValue2[i], &timer_value_now);
+        res0 = ADC_convert(*adc0, &adcValue0[i]);
+        res1 = ADC_convert(*adc1, &adcValue1[i]);
+        res2 = ADC_convert(*adc2, &adcValue2[i]);
 
         timer_clock_before = timer_clock_now;
         timer_clock_now = Timer_getCount(*timer_handle);
@@ -403,9 +403,9 @@ void print_accel_forever_timer(ADC_Handle *adc0, ADC_Handle *adc1, ADC_Handle *a
         //sleep(1);
         i++;
         //Get accel readings
-        res0 = ADC_convert(*adc0, &adcraw0, &timer_value_now);
-        res1 = ADC_convert(*adc1, &adcraw1, &timer_value_now);
-        res2 = ADC_convert(*adc2, &adcraw2, &timer_value_now);
+        res0 = ADC_convert(*adc0, &adcraw0);
+        res1 = ADC_convert(*adc1, &adcraw1);
+        res2 = ADC_convert(*adc2, &adcraw2);
 
         timer_clock_before = timer_clock_now;
         timer_clock_now = Timer_getCount(*timer_handle);
@@ -491,9 +491,9 @@ void print_accel_forever_timer_detection(ADC_Handle *adc0, ADC_Handle *adc1, ADC
         else{i++;}
 
         //Get accel readings
-        res0 = ADC_convert(*adc0, &adcraw0, &timer_value_now);
-        res1 = ADC_convert(*adc1, &adcraw1, &timer_value_now);
-        res2 = ADC_convert(*adc2, &adcraw2, &timer_value_now);
+        res0 = ADC_convert(*adc0, &adcraw0);
+        res1 = ADC_convert(*adc1, &adcraw1);
+        res2 = ADC_convert(*adc2, &adcraw2);
 
         timer_clock_before = timer_clock_now;
         timer_clock_now = Timer_getCount(*timer_handle);
@@ -570,9 +570,9 @@ void send_data(int i, ADC_Handle *adc0, ADC_Handle *adc1, ADC_Handle *adc2, Time
         else{i++;}
 
         //Get accel readings
-        res0 = ADC_convert(*adc0, &adcraw0, &timer_value_now);
-        res1 = ADC_convert(*adc1, &adcraw1, &timer_value_now);
-        res2 = ADC_convert(*adc2, &adcraw2, &timer_value_now);
+        res0 = ADC_convert(*adc0, &adcraw0);
+        res1 = ADC_convert(*adc1, &adcraw1);
+        res2 = ADC_convert(*adc2, &adcraw2);
 
         timer_clock_before = timer_clock_now;
         timer_clock_now = Timer_getCount(*timer_handle);
