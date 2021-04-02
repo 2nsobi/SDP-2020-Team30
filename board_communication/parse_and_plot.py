@@ -9,7 +9,7 @@
 ############################################
 
 import  matplotlib.pyplot as plt
-from sklearn.preprocessing import normalize
+from sklearn.preprocessing import normalize, MinMaxScaler
 import numpy as np
 
 ############################################
@@ -66,12 +66,17 @@ def plot_tcp_data(wrist_mod_data, base_mod_data):
     base_y_axis = base_mod_data["adc"][:len(base_x_axis)]
 
     # normalize y axis
-    wrist_y_axis = normalize(np.array(wrist_y_axis).reshape(-1, 1), axis=0, norm='max')
-    base_y_axis = normalize(np.array(base_y_axis).reshape(-1, 1), axis=0, norm='max')
+    # wrist_y_axis = normalize(np.array(wrist_y_axis).reshape(-1, 1), axis=0, norm='l1')
+    # base_y_axis = normalize(np.array(base_y_axis).reshape(-1, 1), axis=0, norm='l1')
+    wrist_y_scaled = MinMaxScaler()
+    wrist_y = wrist_y_scaled.fit_transform(np.array(wrist_y_axis).reshape(-1, 1))
+
+    base_y_scaled = MinMaxScaler()
+    base_y = base_y_scaled.fit_transform(np.array(base_y_axis).reshape(-1, 1))
 
 
-    plt.plot(wrist_x_axis, wrist_y_axis, label="wrist")
-    plt.plot(base_x_axis, base_y_axis, label="base")
+    plt.plot(wrist_x_axis, wrist_y, label="wrist")
+    plt.plot(base_x_axis, base_y, label="base")
     plt.xlabel("Beacon Timestamp in ms")
     plt.ylabel("Relative ADC readings")
     plt.legend()

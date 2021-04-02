@@ -137,28 +137,28 @@ def windows(plot = True, plot_1 = False):
     # plot_1: indicates whether or not to plot only 1 board's output (cannot be true if plot is false)
     global ENTRY_PORT
 
+    ap = WindowsSoftAP()
+    # ap.start_ap()
+    server_ip = ap.get_ipv4()
+    if server_ip is None:
+        logger.info('server_ip is None')
+        quit()
+    else:
+        logger.info("Windows AP started with IP addr {}".format(server_ip))
+    ENTRY_PORT = 10000
+
+    entry_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  # Create a TCP/IP socket
+    entry_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    entry_address = (server_ip, ENTRY_PORT)
+    entry_socket.bind(entry_address)  # Bind the socket to the port
+    entry_socket.listen(2)  # Listen for incoming connections
+
     while(1):
 
         readings = {"wrist":{}, "base":{}}
 
         try:
-            ap = WindowsSoftAP()
-            # ap.start_ap()
-            server_ip = ap.get_ipv4()
-            if server_ip is None:
-                logger.info('server_ip is None')
-                quit()
-            else:
-                logger.info("Windows AP started with IP addr {}".format(server_ip))
-            ENTRY_PORT = 10000
-
-            entry_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  # Create a TCP/IP socket
-            entry_socket.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            entry_address = (server_ip, ENTRY_PORT)
-            entry_socket.bind(entry_address)  # Bind the socket to the port
-            entry_socket.listen(2)  # Listen for incoming connections
             last_time = time.time()
-
 
             for i in range(2):
 
@@ -185,9 +185,6 @@ def windows(plot = True, plot_1 = False):
             logger.info(e)
             logger.info("Exiting")
             return
-        finally:
-            entry_socket.close()
-            logger.info("Entry socket closed")
         logger.info("Contents of readings: ----------------------")
         for key in readings:
             logger.info(key)
