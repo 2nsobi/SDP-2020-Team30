@@ -24,7 +24,8 @@
 
 //#define MAC_FILTER_ARGS           " -f S_MAC -v 58:FB:84:5D:70:05 -e not_equals -a drop -m L1"
 //#define MAC_FILTER_ARGS           " -f S_MAC -v 58:00:e3:43:6b:63 -e not_equals -a drop -m L1"
-#define MAC_FILTER_ARGS           " -f S_MAC -v BE:91:80:53:29:14 -e not_equals -a drop -m L1"
+#define MAC_FILTER_ARGS           " -f S_MAC -v 6a:00:e3:43:6b:63 -e not_equals -a drop -m L1"
+//#define MAC_FILTER_ARGS           " -f S_MAC -v BE:91:80:53:29:14 -e not_equals -a drop -m L1"
 
 
 
@@ -36,8 +37,7 @@ typedef union
 
 uint8_t Tx_data[MAX_TX_PACKET_SIZE];
 uint32_t timestamps[2][NUM_READINGS];
-float load_cell_readings[1];
-float accel_readings[NUM_READINGS];
+float adc_readings[NUM_READINGS];
 uint32_t hw_timestamps[1];
 
 int32_t connectToAP()
@@ -196,7 +196,7 @@ void handle_wifi_disconnection(uint32_t status)
 int32_t time_beacons_and_accelerometer(ADC_Handle *adc0, ADC_Handle *adc1, ADC_Handle *adc2)
 {
     /* ALWAYS DECLARE ALL VARIABLES AT TOP OF FUNCTION TO AVOID BUFFER ISSUES */
-    uint32_t channel = 1;
+    uint32_t channel = 11;
     int current_ts_index = 0;
     _i16 cur_channel;
     _i16 numBytes;
@@ -265,13 +265,12 @@ int32_t time_beacons_and_accelerometer(ADC_Handle *adc0, ADC_Handle *adc1, ADC_H
 
 
             parse_beacon_frame(Rx_frame, &frameInfo, 0);
-            if(frameInfo.timestamp != badbeacon){
+            if(frameInfo.timestamp != badbeacon && frameInfo.timestamp != last_beac_ts){
                 last_beac_ts = frameInfo.timestamp;
+                beacon_count+=1;
+                UART_PRINT("%d beacons recieved\n\r", beacon_count);
+                last_local_ts = (int32_t) (cur_time.tv_sec * 1000 + cur_time.tv_nsec / 1000000);
             }
-            beacon_count+=1;
-            UART_PRINT("%d beacons recieved\n\r", beacon_count);
-            last_local_ts = (int32_t) (cur_time.tv_sec * 1000 + cur_time.tv_nsec / 1000000);
-
 
         }
 
@@ -311,7 +310,7 @@ int32_t time_beacons_and_accelerometer(ADC_Handle *adc0, ADC_Handle *adc1, ADC_H
             timestamps[1][current_ts_index] = (uint32_t) (cur_time.tv_sec * 1000 + cur_time.tv_nsec / 1000000);
             //calculate (acceleration)^2
             accel_sqr = (adc0mv * adc0mv) + (adc1mv * adc1mv) + (adc2mv * adc2mv);
-            accel_readings[current_ts_index] = accel_sqr;
+            adc_readings[current_ts_index] = accel_sqr;
             //UART_PRINT("Beacon_ts interval: %d\n\r", last_beac_ts-frameInfo.timestamp);
             //UART_PRINT("Beacon_ts: %d\n\r", frameInfo.timestamp);
 
@@ -381,7 +380,7 @@ int32_t time_beacons_and_accelerometer(ADC_Handle *adc0, ADC_Handle *adc1, ADC_H
 
             memset(Tx_data, 0, MAX_TX_PACKET_SIZE);
 
-            accel_to_string(timestamps, accel_readings, current_ts_index, Tx_data);
+            accel_to_string(timestamps, adc_readings, current_ts_index, Tx_data);
 
             //UART_PRINT("%s\n\r", Tx_data);
 
@@ -463,7 +462,7 @@ void load_cell_test(ADC_Handle *adc0){
 int32_t time_beacons_and_load_cell(ADC_Handle *adc0)
 {
     /* ALWAYS DECLARE ALL VARIABLES AT TOP OF FUNCTION TO AVOID BUFFER ISSUES */
-    uint32_t channel = 1;
+    uint32_t channel = 11;
     int current_ts_index = 0;
     _i16 cur_channel;
     _i16 numBytes;
@@ -473,7 +472,7 @@ int32_t time_beacons_and_load_cell(ADC_Handle *adc0)
     int32_t buflen;
     uint32_t i=0;
     uint32_t j=0;
-    _u32 nonBlocking = 0;
+    _u32 nonBlocking = 1;
     uint32_t timestamp = 0;
     uint16_t beacInterval;
     frameInfo_t frameInfo;
@@ -543,44 +542,43 @@ int32_t time_beacons_and_load_cell(ADC_Handle *adc0)
 
 
             hw_timestamp = parse_beacon_frame(Rx_frame, &frameInfo, 0);
-            if(frameInfo.timestamp != badbeacon){
+            if(frameInfo.timestamp != badbeacon && frameInfo.timestamp != last_beac_ts){
                 last_beac_ts = frameInfo.timestamp;
-            }
-            beacon_count+=1;
-            UART_PRINT("%d beacons recieved\n\r", beacon_count);
-            last_local_ts = (int32_t) (cur_time.tv_sec * 1000 + cur_time.tv_nsec / 1000000);
-
-            for(x=0; x<8; x++){
-                //Get accel readings
-                res0 = ADC_convert(*adc0, &adcraw0);
-
-                //make sure readings were successful
-                if (res0 == ADC_STATUS_SUCCESS) {
-                    adc0mv = (float)adcraw0/1.14;
-                }
-                else {
-                    UART_PRINT("CONFIG_ADC_0 convert failed\n\r");
-                }
-
-                //UART_PRINT("adc0mv: %f\n\r", adc0mv);
-
-                timestamps[0][current_ts_index] = (uint32_t) last_beac_ts;
-                timestamps[1][current_ts_index] = (uint32_t) (cur_time.tv_sec * 1000 + cur_time.tv_nsec / 1000000);
-                load_cell_readings[current_ts_index] = adc0mv;
-                //UART_PRINT("Beacon_ts interval: %d\n\r", last_beac_ts-frameInfo.timestamp);
-                //UART_PRINT("Beacon_ts:\t%u\n\r", frameInfo.timestamp);
-                UART_PRINT("Beacon_ts in array: %u\n\r", timestamps[0][current_ts_index]);
-        //        UART_PRINT("HW timestamp:\t%ul\n\r", hw_timestamp);
-                //UART_PRINT("Load cell reading: %f\n\r", load_cell_readings[current_ts_index]);
-
-                current_ts_index = (current_ts_index + 1) % NUM_READINGS;
-        //        last_beac_ts = frameInfo.timestamp;
-                last_hw_timestamp = hw_timestamp;
-                usleep(9000);   //sleep for 10 ms
-                clock_gettime(CLOCK_REALTIME, &cur_time);
+                beacon_count+=1;
+                UART_PRINT("%d beacons recieved\n\r", beacon_count);
+                last_local_ts = (int32_t) (cur_time.tv_sec * 1000 + cur_time.tv_nsec / 1000000);
             }
 
+        }
 
+        for(x=0; x<1; x++){
+            //Get accel readings
+            res0 = ADC_convert(*adc0, &adcraw0);
+
+            //make sure readings were successful
+            if (res0 == ADC_STATUS_SUCCESS) {
+                adc0mv = (float)adcraw0/1.14;
+            }
+            else {
+                UART_PRINT("CONFIG_ADC_0 convert failed\n\r");
+            }
+
+            //UART_PRINT("adc0mv: %f\n\r", adc0mv);
+
+            timestamps[0][current_ts_index] = (uint32_t) last_beac_ts;
+            timestamps[1][current_ts_index] = (uint32_t) (cur_time.tv_sec * 1000 + cur_time.tv_nsec / 1000000);
+            adc_readings[current_ts_index] = adc0mv;
+            //UART_PRINT("Beacon_ts interval: %d\n\r", last_beac_ts-frameInfo.timestamp);
+            //UART_PRINT("Beacon_ts:\t%u\n\r", frameInfo.timestamp);
+            //UART_PRINT("Beacon_ts in array: %u\n\r", timestamps[0][current_ts_index]);
+    //        UART_PRINT("HW timestamp:\t%ul\n\r", hw_timestamp);
+            //UART_PRINT("Load cell reading: %f\n\r", load_cell_readings[current_ts_index]);
+
+            current_ts_index = (current_ts_index + 1) % NUM_READINGS;
+    //        last_beac_ts = frameInfo.timestamp;
+            last_hw_timestamp = hw_timestamp;
+            usleep(9000);   //sleep for 10 ms
+            clock_gettime(CLOCK_REALTIME, &cur_time);
         }
 
 
@@ -643,7 +641,7 @@ int32_t time_beacons_and_load_cell(ADC_Handle *adc0)
 
             memset(Tx_data, 0, MAX_TX_PACKET_SIZE);
 
-            ts_to_string(timestamps, load_cell_readings, current_ts_index, Tx_data);
+            ts_to_string(timestamps, adc_readings, current_ts_index, Tx_data);
             //UART_PRINT("%s\n\r", Tx_data);
 
             //UART_PRINT("%s\n\r", Tx_data);

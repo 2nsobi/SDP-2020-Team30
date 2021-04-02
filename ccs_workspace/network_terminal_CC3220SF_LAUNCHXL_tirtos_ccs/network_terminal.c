@@ -1945,7 +1945,7 @@ void * mainThread(void *arg)
 
 //--------------------------------------------------------------------------------------------------------------------------------------------------
 //ADC SETUP
-
+    bool load_cell = 1;  //1 if base module, 0 if wrist module
     ADC_Handle   adc0, adc1, adc2;
     ADC_Params   params;
 
@@ -1959,28 +1959,32 @@ void * mainThread(void *arg)
     }
     UART_PRINT("Successfully initialized CONFIG_ADC_0\n");
 
-    adc1 = ADC_open(CONFIG_ADC_1, &params);
-    if (adc1 == NULL) {
-        UART_PRINT("Error initializing CONFIG_ADC_0\n");
-        return(-1);
+    if(load_cell){
+        time_beacons_and_load_cell(&adc0);
     }
-    UART_PRINT("Successfully initialized CONFIG_ADC_0\n");
+    else{
 
-    adc2 = ADC_open(CONFIG_ADC_2, &params);
-    if (adc2 == NULL) {
-        UART_PRINT("Error initializing CONFIG_ADC_0\n");
-        return(-1);
+        adc1 = ADC_open(CONFIG_ADC_1, &params);
+        if (adc1 == NULL) {
+            UART_PRINT("Error initializing CONFIG_ADC_0\n");
+            return(-1);
+        }
+        UART_PRINT("Successfully initialized CONFIG_ADC_0\n");
+
+        adc2 = ADC_open(CONFIG_ADC_2, &params);
+        if (adc2 == NULL) {
+            UART_PRINT("Error initializing CONFIG_ADC_0\n");
+            return(-1);
+        }
+        UART_PRINT("Successfully initialized CONFIG_ADC_0\n");
+
+        time_beacons_and_accelerometer(&adc0, &adc1, &adc2);
+        ADC_close(adc1);
+        ADC_close(adc2);
     }
-    UART_PRINT("Successfully initialized CONFIG_ADC_0\n");
-
-    //load_cell_test(&adc0);
-    //time_beacons_and_load_cell(&adc0);
-    time_beacons_and_accelerometer(&adc0, &adc1, &adc2);
-
 
     ADC_close(adc0);
-    ADC_close(adc1);
-    ADC_close(adc2);
+
 
 
 //--------------------------------------------------------------------------------------------------------------------------------------------------
