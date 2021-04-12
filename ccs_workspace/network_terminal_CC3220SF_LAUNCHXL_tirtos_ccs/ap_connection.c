@@ -395,25 +395,24 @@ int32_t time_beacons_and_accelerometer(ADC_Handle *adc0, ADC_Handle *adc1, ADC_H
                    }
                    else if(status < 0)
                    {
-                       UART_PRINT("[line:%d, error:%d] %s\n\r", __LINE__, status,
+                       UART_PRINT("[line:%d, error:%d] No server TCP socket to connect to, disconnecting from AP: %s\n\r", __LINE__, status,
                                   SL_SOCKET_ERROR);
-                       sl_Close(tcp_sock);
-                       UART_PRINT("No TCP socket to connect to, terminating program\n");
-                       return(-1);
                    }
                    break;
                 }
 
-                memset(Tx_data, 0, MAX_TX_PACKET_SIZE);
+                if(status >= 0)
+                {
+                    memset(Tx_data, 0, MAX_TX_PACKET_SIZE);
 
-                accel_to_string(timestamps, adc_readings, current_ts_index, Tx_data);
+                    accel_to_string(timestamps, adc_readings, current_ts_index, Tx_data);
 
-                //UART_PRINT("%s\n\r", Tx_data);
+                    //UART_PRINT("%s\n\r", Tx_data);
 
-                status = sl_Send(tcp_sock, &Tx_data, strlen(Tx_data), 0);
-                UART_PRINT("bytes sent: %i\n\r",status);
-                UART_PRINT("String length of TX data: %i\n\r", strlen(Tx_data));
-
+                    status = sl_Send(tcp_sock, &Tx_data, strlen(Tx_data), 0);
+                    UART_PRINT("bytes sent: %i\n\r",status);
+                    UART_PRINT("String length of TX data: %i\n\r", strlen(Tx_data));
+                }
 
                 status = sl_Close(tcp_sock);
                 ASSERT_ON_ERROR(status, SL_SOCKET_ERROR);
@@ -428,9 +427,6 @@ int32_t time_beacons_and_accelerometer(ADC_Handle *adc0, ADC_Handle *adc1, ADC_H
                 sleep(2);
                 status = sl_WlanDisconnect();
                 ASSERT_ON_ERROR(status, WLAN_ERROR);
-
-                UART_PRINT("done sending time sync data and disconnected from AP"
-                       ", will re-enter transceiver mode in a few seconds\n\r");
                 sleep(2);
             }
 
@@ -682,32 +678,32 @@ int32_t time_beacons_and_load_cell(ADC_Handle *adc0)
                     * 'sl_Accept' would start session with
                     * the TCP server. */
                    status = sl_Connect(tcp_sock, sa, addrSize);
-                   if((status == SL_ERROR_BSD_EALREADY)&& (TRUE == nonBlocking))
+                   if((status == SL_ERROR_BSD_EALREADY) && (TRUE == nonBlocking))
                    {
                        sleep(1);
                        continue;
                    }
                    else if(status < 0)
                    {
-                       UART_PRINT("[line:%d, error:%d] %s\n\r", __LINE__, status,
+                       UART_PRINT("[line:%d, error:%d] No server TCP socket to connect to, disconnecting from AP: %s\n\r", __LINE__, status,
                                   SL_SOCKET_ERROR);
-                       sl_Close(tcp_sock);
-                       UART_PRINT("No TCP socket to connect to, terminating program\n");
-                       return(-1);
                    }
                    break;
                 }
 
-                memset(Tx_data, 0, MAX_TX_PACKET_SIZE);
+                if(status >= 0)
+                {
+                    memset(Tx_data, 0, MAX_TX_PACKET_SIZE);
 
-                ts_to_string(timestamps, adc_readings, current_ts_index, Tx_data);
-                //UART_PRINT("%s\n\r", Tx_data);
+                    ts_to_string(timestamps, adc_readings, current_ts_index, Tx_data);
+                    //UART_PRINT("%s\n\r", Tx_data);
 
-                //UART_PRINT("%s\n\r", Tx_data);
+                    //UART_PRINT("%s\n\r", Tx_data);
 
-                status = sl_Send(tcp_sock, &Tx_data, strlen(Tx_data), 0);
-                UART_PRINT("bytes sent: %i\n\r",status);
-                UART_PRINT("String length of TX data: %i\n\r", strlen(Tx_data));
+                    status = sl_Send(tcp_sock, &Tx_data, strlen(Tx_data), 0);
+                    UART_PRINT("bytes sent: %i\n\r",status);
+                    UART_PRINT("String length of TX data: %i\n\r", strlen(Tx_data));
+                }
 
                 status = sl_Close(tcp_sock);
                 ASSERT_ON_ERROR(status, SL_SOCKET_ERROR);
@@ -722,13 +718,17 @@ int32_t time_beacons_and_load_cell(ADC_Handle *adc0)
                 sleep(2);
                 status = sl_WlanDisconnect();
                 ASSERT_ON_ERROR(status, WLAN_ERROR);
-
-                UART_PRINT("done sending time sync data and disconnected from AP"
-                       ", will re-enter transceiver mode in a few seconds\n\r");
                 sleep(2);
             }
 
             beaconRxSock = enter_tranceiver_mode(channel, 0, 1);
+            if(beaconRxSock < 0)
+            {
+                UART_PRINT("[line:%d, error:%d] Failed to re-enter transceiver mode: %s\n\r", __LINE__, status,
+                           SL_SOCKET_ERROR);
+                return -1;
+            }
+            UART_PRINT("Successfully re-entered transceiver mode.\n\r");
 
             last_local_ts = 0;
         }
@@ -1100,7 +1100,7 @@ _i16 enter_tranceiver_mode(uint32_t channel, int32_t first_time, int32_t enable_
     _u32 nonBlocking = 1;
     _i16 Tx_sock;
 
-    if(enable_filters)
+    if(first_time)
     {
         uint8_t createFilterArgs1[] = " -f FRAME_TYPE -v management -e not_equals -a drop -m L1";
         uint8_t createFilterArgs2[] = MAC_FILTER_ARGS;
@@ -1132,12 +1132,6 @@ _i16 enter_tranceiver_mode(uint32_t channel, int32_t first_time, int32_t enable_
         status = cmdCreateFilterCallback(createFilterArgs6);
         ASSERT_ON_ERROR(status, WLAN_ERROR);
 
-        status = cmdEnableFilterCallback("");
-        ASSERT_ON_ERROR(status, WLAN_ERROR);
-    }
-
-    if(first_time)
-    {
         /* To use transceiver mode, the device must be set in STA role, be disconnected, and have disabled
             previous connection policies that might try to automatically connect to an AP. */
         status = sl_WlanPolicySet(SL_WLAN_POLICY_CONNECTION, SL_WLAN_CONNECTION_POLICY(0, 0, 0, 0), NULL, 0);
@@ -1146,6 +1140,12 @@ _i16 enter_tranceiver_mode(uint32_t channel, int32_t first_time, int32_t enable_
             UART_PRINT("[line:%d, error:%d]\n\r", __LINE__, status);
             return(-1);
         }
+    }
+
+    if(enable_filters)
+    {
+        status = cmdEnableFilterCallback("");
+        ASSERT_ON_ERROR(status, WLAN_ERROR);
     }
 
     Tx_sock = sl_Socket(SL_AF_RF, SL_SOCK_DGRAM, channel);
