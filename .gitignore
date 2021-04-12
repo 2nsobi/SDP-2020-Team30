@@ -143,8 +143,3 @@ cython_debug/
 # local folders
 /my_tests
 /.metadata/
-
-# CCS project stuff specific to local machine probably
-**/.launches/
-/ccs_workspace/**/Debug/
-/ccs_workspace/**/.*
