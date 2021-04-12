@@ -36,7 +36,7 @@
 #define NUM_READINGS                800
 #define MAX_RX_PACKET_SIZE          1544
 #define MAX_TX_PACKET_SIZE          100000
-#define BEACON_TIME_TRIGGER         1000    // in ms
+#define BEACON_TIME_TRIGGER         2000    // in ms
 #define START_CHANNEL               1
 //#define MAC_FILTER_ARGS           " -f S_MAC -v 58:FB:84:5D:70:05 -e not_equals -a drop -m L1"
 //#define MAC_FILTER_ARGS           " -f S_MAC -v 58:00:e3:43:6b:63 -e not_equals -a drop -m L1"
@@ -62,7 +62,7 @@ typedef struct
     uint8_t ssid[33];
 }frameInfo_t;
 
-int32_t connectToAP();
+int32_t connectToAP(int32_t max_retries);
 
 void load_cell_test(ADC_Handle *adc0);
 
@@ -76,6 +76,6 @@ _u32 parse_beacon_frame(uint8_t * Rx_frame, frameInfo_t * frameInfo, uint8_t pri
 
 int32_t test_time_beac_sync();
 
-_i16 enter_tranceiver_mode(int32_t first_time, uint32_t channel);
+_i16 enter_tranceiver_mode(uint32_t channel, int32_t first_time, int32_t enable_filters);
 
 #endif /* AP_CONNECTION_H_ */

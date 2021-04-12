@@ -32,10 +32,10 @@ float adc_readings[NUM_READINGS];
 uint32_t hw_timestamps[1];
 uint32_t channels_to_check[3] = {1,6,11};
 
-int32_t connectToAP()
+int32_t connectToAP(int32_t max_retries)
 {
-
     int32_t ret = 0;
+    int32_t retries = 0;
     ConnectCmd_t ConnectParams;
 
     memset(&ConnectParams, 0x0, sizeof(ConnectCmd_t));
@@ -84,8 +84,11 @@ int32_t connectToAP()
         app_CB.Role = ret;
     }
 
-    uint32_t connected_to_ap = 0;
+    // disable any Rx filters because they can interfere with connecting to an AP it seems
+    ret = cmdDisableFilterCallback("");
+    ASSERT_AND_CLEAN_CONNECT_NO_FREE(ret, WLAN_ERROR, &ConnectParams);
 
+    uint32_t connected_to_ap = 0;
     while(!connected_to_ap)
     {
         /* Connect to AP */
@@ -110,10 +113,23 @@ int32_t connectToAP()
                                    WLAN_EVENT_TOUT);
             if(ret == TIMEOUT_SEM)
             {
-                UART_PRINT("\n\r[wlanconnect] : Timeout expired connecting to AP: %s\n\r",
-                           ConnectParams.ssid);
-                handle_wifi_disconnection(app_CB.Status);
-                continue;
+                if(retries >= max_retries)
+                {
+                    UART_PRINT("\n\r[connectToAP] : Timeout expired connecting to AP with SSID \"%s\" after %d retries, stopping attempting to connect\n\r",
+                               ConnectParams.ssid, max_retries);
+
+                    // for some reason board seems to enter some sort of failed connection state even after failing so just call sl_WlanDisconnect() just in case
+                    ret = sl_WlanDisconnect();
+                    ASSERT_ON_ERROR(ret, WLAN_ERROR);
+
+                    return -1;
+                }
+                else
+                {
+                    UART_PRINT("\n\r[connectToAP] : Timeout expired connecting to AP: %s, retrying..\n\r", ConnectParams.ssid);
+                    retries++;
+                    continue;
+                }
             }
         }
 
@@ -125,17 +141,9 @@ int32_t connectToAP()
             {
                 /* In next step try to get IPv6,
                   may be router/AP doesn't support IPv4 */
-                UART_PRINT(
-                    "\n\r[wlanconnect] : Timeout expired to acquire IPv4 address.\n\r");
+                UART_PRINT("\n\r[connectToAP] : Timeout expired to acquire IPv4 address.\n\r");
             }
         }
-
-//        if(!IS_IPV6G_ACQUIRED(app_CB.Status) &&
-//           !IS_IPV6L_ACQUIRED(app_CB.Status) && !IS_IP_ACQUIRED(app_CB.Status))
-//        {
-//            UART_PRINT("\n\r[line:%d, error:%d] %s\n\r", __LINE__, -1,
-//                       "Network Error");
-//        }
         else
         {
             connected_to_ap = 1;
@@ -159,24 +167,24 @@ int32_t connectToAP()
 }
 
 
-void handle_wifi_disconnection(uint32_t status)
-{
-    long lRetVal = -1;
-    lRetVal = sl_WlanDisconnect();
-    if(0 == lRetVal)
-    {
-        // Wait Till gets disconnected successfully..
-        while(IS_CONNECTED(status))
-        {
-            Message("checking connection\n\r");
-#if ENABLE_WIFI_DEBUG
-            Message("looping at handle-disconn..\n\r");
-#endif
-            sleep(1);
-        }
-        Message("Stuck Debug :- Disconnection handled properly \n\r");
-    }
-}
+//int32_t handle_wifi_disconnection(uint32_t status)
+//{
+//    long lRetVal = -1;
+//    lRetVal = sl_WlanDisconnect();
+//    if(0 == lRetVal)
+//    {
+//        // Wait Till gets disconnected successfully..
+//        while(IS_CONNECTED(status))
+//        {
+//            Message("checking connection\n\r");
+//#if ENABLE_WIFI_DEBUG
+//            Message("looping at handle-disconn..\n\r");
+//#endif
+//            sleep(1);
+//        }
+//        Message("Stuck Debug :- Disconnection handled properly \n\r");
+//    }
+//}
 
 
 
@@ -189,23 +197,15 @@ int32_t time_beacons_and_accelerometer(ADC_Handle *adc0, ADC_Handle *adc1, ADC_H
 {
     /* ALWAYS DECLARE ALL VARIABLES AT TOP OF FUNCTION TO AVOID BUFFER ISSUES */
     int32_t channel = START_CHANNEL;
-    int32_t cur_channel = channel;
     int current_ts_index = 0;
     _i16 numBytes;
     _i16 status;
-    int32_t sent_bytes;
-    int32_t bytes_to_send;
-    int32_t buflen;
     _u32 nonBlocking = 1;
-    uint32_t timestamp = 0;
-    uint16_t beacInterval;
     frameInfo_t frameInfo;
     _i16 beaconRxSock;
     struct timespec cur_time;
     uint32_t last_beac_ts = 0;
     uint8_t Rx_frame[MAX_RX_PACKET_SIZE];
-    uint32_t send_beac_ts = 0;
-    uint32_t send_interval = 10000;
     int32_t last_local_ts = 0;
 
     sockAddr_t sAddr;
@@ -213,7 +213,6 @@ int32_t time_beacons_and_accelerometer(ADC_Handle *adc0, ADC_Handle *adc1, ADC_H
     SlSockAddr_t * sa;
     int32_t tcp_sock;
     int32_t addrSize;
-    int32_t no_bytes_count = 0;
     int32_t beacon_count = 0;
     uint32_t badbeacon = 184812040;
     int x;
@@ -238,7 +237,7 @@ int32_t time_beacons_and_accelerometer(ADC_Handle *adc0, ADC_Handle *adc1, ADC_H
     sa = (SlSockAddr_t*)&sAddr.in4;
     addrSize = sizeof(SlSockAddrIn6_t);
 
-    beaconRxSock = enter_tranceiver_mode(1, channel);
+    beaconRxSock = enter_tranceiver_mode(channel, 1, 1);
 
     // just loop until a beacon frame is received successfully
     clock_gettime(CLOCK_REALTIME, &cur_time);
@@ -260,7 +259,6 @@ int32_t time_beacons_and_accelerometer(ADC_Handle *adc0, ADC_Handle *adc1, ADC_H
             }
             // otherwise at this point the first successful beacon should have been received from the specified AP MAC addy
             UART_PRINT("Beacon frame found from AP with SSID \"%s\" on channel %d\n\r", AP_SSID, channel);
-            parse_beacon_frame(Rx_frame, &frameInfo, 1);
             break;
         }
 
@@ -278,7 +276,7 @@ int32_t time_beacons_and_accelerometer(ADC_Handle *adc0, ADC_Handle *adc1, ADC_H
             channel = channels_to_check[i];
 
             UART_PRINT("Switching to channel %d to check for beacon frames from AP with SSID \"%s\"\n\r", channel, AP_SSID);
-            beaconRxSock = enter_tranceiver_mode(0, channel);
+            beaconRxSock = enter_tranceiver_mode(channel, 0, 0);
         }
     }
 
@@ -297,11 +295,11 @@ int32_t time_beacons_and_accelerometer(ADC_Handle *adc0, ADC_Handle *adc1, ADC_H
             }
             //UART_PRINT("Beacon recieved \n\r");
 
-            parse_beacon_frame(Rx_frame, &frameInfo, 1);
+            parse_beacon_frame(Rx_frame, &frameInfo, 0);
             if(frameInfo.timestamp != badbeacon && frameInfo.timestamp != last_beac_ts){
                 last_beac_ts = frameInfo.timestamp;
                 beacon_count+=1;
-                UART_PRINT("%d beacons recieved\n\r", beacon_count);
+                UART_PRINT("%d beacons received\n\r", beacon_count);
                 last_local_ts = (int32_t) (cur_time.tv_sec * 1000 + cur_time.tv_nsec / 1000000);
             }
 
@@ -351,8 +349,6 @@ int32_t time_beacons_and_accelerometer(ADC_Handle *adc0, ADC_Handle *adc1, ADC_H
             clock_gettime(CLOCK_REALTIME, &cur_time);
         }
 
-
-
         if(last_local_ts != 0 && (int32_t)(cur_time.tv_sec * 1000 + cur_time.tv_nsec / 1000000) - last_local_ts >= BEACON_TIME_TRIGGER)
         {
             // stop transeiver modetest_ap_1
@@ -366,85 +362,86 @@ int32_t time_beacons_and_accelerometer(ADC_Handle *adc0, ADC_Handle *adc1, ADC_H
             status = sl_Close(beaconRxSock);
             ASSERT_ON_ERROR(status, SL_SOCKET_ERROR);
 
-            UART_PRINT("its been %u ms (AP timestamp: %u ms), time to send time sync data, "
-                   "will connect to AP and send in a few seconds\n\r", send_interval, frameInfo.timestamp/1000);
+            UART_PRINT("its been %d ms without receiving a new time beacon from AP with SSID \"%s\", will attempt to send back data once AP is re-enabled\n\r",
+                       BEACON_TIME_TRIGGER, AP_SSID);
             sleep(2);
 
-            status = connectToAP();
+            status = connectToAP(4);
             if(status < 0)
+                UART_PRINT("could not connect to AP with SSID \"%s\"\n\r", AP_SSID);
+            else
             {
-               UART_PRINT("could not connect to AP\n\r");
-               return -1;
+                if(!sAddr.in4.sin_addr.s_addr)
+                   sAddr.in4.sin_addr.s_addr = sl_Htonl((unsigned int)app_CB.CON_CB.GatewayIP);
+
+                /* Get socket descriptor - this would be the
+                * socket descriptor for the TCP session.
+                */
+                tcp_sock = sl_Socket(sa->sa_family, SL_SOCK_STREAM, TCP_PROTOCOL_FLAGS);
+                ASSERT_ON_ERROR(tcp_sock, SL_SOCKET_ERROR);
+
+                status = -1;
+
+                while(status < 0)
+                {
+                   /* Calling 'sl_Connect' followed by server's
+                    * 'sl_Accept' would start session with
+                    * the TCP server. */
+                   status = sl_Connect(tcp_sock, sa, addrSize);
+                   if((status == SL_ERROR_BSD_EALREADY)&& (TRUE == nonBlocking))
+                   {
+                       sleep(1);
+                       continue;
+                   }
+                   else if(status < 0)
+                   {
+                       UART_PRINT("[line:%d, error:%d] %s\n\r", __LINE__, status,
+                                  SL_SOCKET_ERROR);
+                       sl_Close(tcp_sock);
+                       UART_PRINT("No TCP socket to connect to, terminating program\n");
+                       return(-1);
+                   }
+                   break;
+                }
+
+                memset(Tx_data, 0, MAX_TX_PACKET_SIZE);
+
+                accel_to_string(timestamps, adc_readings, current_ts_index, Tx_data);
+
+                //UART_PRINT("%s\n\r", Tx_data);
+
+                status = sl_Send(tcp_sock, &Tx_data, strlen(Tx_data), 0);
+                UART_PRINT("bytes sent: %i\n\r",status);
+                UART_PRINT("String length of TX data: %i\n\r", strlen(Tx_data));
+
+
+                status = sl_Close(tcp_sock);
+                ASSERT_ON_ERROR(status, SL_SOCKET_ERROR);
+
+                /* After calling sl_WlanDisconnect(),
+                *    we expect WLAN disconnect asynchronous event.
+                * Cleaning the former connection information from
+                * the application control block
+                * is handled in that event handler,
+                * as well as getting the disconnect reason.
+                */
+                sleep(2);
+                status = sl_WlanDisconnect();
+                ASSERT_ON_ERROR(status, WLAN_ERROR);
+
+                UART_PRINT("done sending time sync data and disconnected from AP"
+                       ", will re-enter transceiver mode in a few seconds\n\r");
+                sleep(2);
             }
 
-            if(!sAddr.in4.sin_addr.s_addr)
-               sAddr.in4.sin_addr.s_addr = sl_Htonl((unsigned int)app_CB.CON_CB.GatewayIP);
-
-            /* Get socket descriptor - this would be the
-            * socket descriptor for the TCP session.
-            */
-            tcp_sock = sl_Socket(sa->sa_family, SL_SOCK_STREAM, TCP_PROTOCOL_FLAGS);
-            ASSERT_ON_ERROR(tcp_sock, SL_SOCKET_ERROR);
-
-            status = -1;
-
-            while(status < 0)
+            beaconRxSock = enter_tranceiver_mode(channel, 0, 1);
+            if(beaconRxSock < 0)
             {
-               /* Calling 'sl_Connect' followed by server's
-                * 'sl_Accept' would start session with
-                * the TCP server. */
-               status = sl_Connect(tcp_sock, sa, addrSize);
-               if((status == SL_ERROR_BSD_EALREADY)&& (TRUE == nonBlocking))
-               {
-                   sleep(1);
-                   continue;
-               }
-               else if(status < 0)
-               {
-                   UART_PRINT("[line:%d, error:%d] %s\n\r", __LINE__, status,
-                              SL_SOCKET_ERROR);
-                   sl_Close(tcp_sock);
-                   UART_PRINT("No TCP socket to connect to, terminating program\n");
-                   return(-1);
-               }
-               break;
+                UART_PRINT("[line:%d, error:%d] Failed to re-enter transceiver mode: %s\n\r", __LINE__, status,
+                           SL_SOCKET_ERROR);
+                return -1;
             }
-
-            memset(Tx_data, 0, MAX_TX_PACKET_SIZE);
-
-            accel_to_string(timestamps, adc_readings, current_ts_index, Tx_data);
-
-            //UART_PRINT("%s\n\r", Tx_data);
-
-            sent_bytes = 0;
-            bytes_to_send = strlen(Tx_data);
-
-            status = sl_Send(tcp_sock, &Tx_data, strlen(Tx_data), 0);
-            UART_PRINT("bytes sent: %i\n\r",status);
-            UART_PRINT("String length of TX data: %i\n\r", strlen(Tx_data));
-
-
-            status = sl_Close(tcp_sock);
-            ASSERT_ON_ERROR(status, SL_SOCKET_ERROR);
-
-            /* After calling sl_WlanDisconnect(),
-            *    we expect WLAN disconnect asynchronous event.
-            * Cleaning the former connection information from
-            * the application control block
-            * is handled in that event handler,
-            * as well as getting the disconnect reason.
-            */
-            sleep(2);
-            status = sl_WlanDisconnect();
-            ASSERT_ON_ERROR(status, WLAN_ERROR);
-
-            UART_PRINT("done sending time sync data and disconnected from AP"
-                   ", will re-enter transceiver mode in a few seconds\n\r");
-            sleep(2);
-            beaconRxSock = enter_tranceiver_mode(0, channel);
-
-            send_beac_ts += send_interval;
-            UART_PRINT("next timestamp to send data at: %u\n\r", send_beac_ts);
+            UART_PRINT("Successfully re-entered transceiver mode.\n\r");
 
             last_local_ts = 0;
         }
@@ -498,12 +495,7 @@ int32_t time_beacons_and_load_cell(ADC_Handle *adc0)
     int current_ts_index = 0;
     _i16 numBytes;
     _i16 status;
-    int32_t sent_bytes;
-    int32_t bytes_to_send;
-    int32_t buflen;
     _u32 nonBlocking = 1;
-    uint32_t timestamp = 0;
-    uint16_t beacInterval;
     frameInfo_t frameInfo;
     _i16 beaconRxSock;
     //int32_t reading[MAX_ELEM_ARR_SIZE];
@@ -511,8 +503,6 @@ int32_t time_beacons_and_load_cell(ADC_Handle *adc0)
     uint32_t last_beac_ts = 0;
     //int32_t counter = 0;
     uint8_t Rx_frame[MAX_RX_PACKET_SIZE];
-    uint32_t send_beac_ts = 0;
-    uint32_t send_interval = 10000;
     int32_t last_local_ts = 0;
 
     sockAddr_t sAddr;
@@ -520,7 +510,6 @@ int32_t time_beacons_and_load_cell(ADC_Handle *adc0)
     SlSockAddr_t * sa;
     int32_t tcp_sock;
     int32_t addrSize;
-    int32_t no_bytes_count = 0;
     int32_t beacon_count = 0;
     _u32 hw_timestamp;
     _u32 last_hw_timestamp = 0;
@@ -546,7 +535,7 @@ int32_t time_beacons_and_load_cell(ADC_Handle *adc0)
     sa = (SlSockAddr_t*)&sAddr.in4;
     addrSize = sizeof(SlSockAddrIn6_t);
 
-    beaconRxSock = enter_tranceiver_mode(1, channel);
+    beaconRxSock = enter_tranceiver_mode(channel, 1, 1);
 
     // just loop until a beacon frame is received successfully
     clock_gettime(CLOCK_REALTIME, &cur_time);
@@ -585,7 +574,7 @@ int32_t time_beacons_and_load_cell(ADC_Handle *adc0)
             channel = channels_to_check[i];
 
             UART_PRINT("Switching to channel %d to check for beacon frames from AP with SSID \"%s\"\n\r", channel, AP_SSID);
-            beaconRxSock = enter_tranceiver_mode(0, channel);
+            beaconRxSock = enter_tranceiver_mode(channel, 0, 0);
         }
     }
 
@@ -667,85 +656,79 @@ int32_t time_beacons_and_load_cell(ADC_Handle *adc0)
             status = sl_Close(beaconRxSock);
             ASSERT_ON_ERROR(status, SL_SOCKET_ERROR);
 
-            UART_PRINT("its been %u ms (AP timestamp: %u ms), time to send time sync data, "
-                   "will connect to AP and send in a few seconds\n\r", send_interval, frameInfo.timestamp/1000);
+            UART_PRINT("its been %d ms without receiving a new time beacon from AP with SSID \"%s\", will attempt to send back data once AP is re-enabled\n\r",
+                       BEACON_TIME_TRIGGER, AP_SSID);
             sleep(2);
 
-            status = connectToAP();
+            status = connectToAP(4);
             if(status < 0)
+                UART_PRINT("could not connect to AP with SSID \"%s\"\n\r", AP_SSID);
+            else
             {
-               UART_PRINT("could not connect to AP\n\r");
-               return -1;
+                if(!sAddr.in4.sin_addr.s_addr)
+                   sAddr.in4.sin_addr.s_addr = sl_Htonl((unsigned int)app_CB.CON_CB.GatewayIP);
+
+                /* Get socket descriptor - this would be the
+                * socket descriptor for the TCP session.
+                */
+                tcp_sock = sl_Socket(sa->sa_family, SL_SOCK_STREAM, TCP_PROTOCOL_FLAGS);
+                ASSERT_ON_ERROR(tcp_sock, SL_SOCKET_ERROR);
+
+                status = -1;
+
+                while(status < 0)
+                {
+                   /* Calling 'sl_Connect' followed by server's
+                    * 'sl_Accept' would start session with
+                    * the TCP server. */
+                   status = sl_Connect(tcp_sock, sa, addrSize);
+                   if((status == SL_ERROR_BSD_EALREADY)&& (TRUE == nonBlocking))
+                   {
+                       sleep(1);
+                       continue;
+                   }
+                   else if(status < 0)
+                   {
+                       UART_PRINT("[line:%d, error:%d] %s\n\r", __LINE__, status,
+                                  SL_SOCKET_ERROR);
+                       sl_Close(tcp_sock);
+                       UART_PRINT("No TCP socket to connect to, terminating program\n");
+                       return(-1);
+                   }
+                   break;
+                }
+
+                memset(Tx_data, 0, MAX_TX_PACKET_SIZE);
+
+                ts_to_string(timestamps, adc_readings, current_ts_index, Tx_data);
+                //UART_PRINT("%s\n\r", Tx_data);
+
+                //UART_PRINT("%s\n\r", Tx_data);
+
+                status = sl_Send(tcp_sock, &Tx_data, strlen(Tx_data), 0);
+                UART_PRINT("bytes sent: %i\n\r",status);
+                UART_PRINT("String length of TX data: %i\n\r", strlen(Tx_data));
+
+                status = sl_Close(tcp_sock);
+                ASSERT_ON_ERROR(status, SL_SOCKET_ERROR);
+
+                /* After calling sl_WlanDisconnect(),
+                *    we expect WLAN disconnect asynchronous event.
+                * Cleaning the former connection information from
+                * the application control block
+                * is handled in that event handler,
+                * as well as getting the disconnect reason.
+                */
+                sleep(2);
+                status = sl_WlanDisconnect();
+                ASSERT_ON_ERROR(status, WLAN_ERROR);
+
+                UART_PRINT("done sending time sync data and disconnected from AP"
+                       ", will re-enter transceiver mode in a few seconds\n\r");
+                sleep(2);
             }
 
-            if(!sAddr.in4.sin_addr.s_addr)
-               sAddr.in4.sin_addr.s_addr = sl_Htonl((unsigned int)app_CB.CON_CB.GatewayIP);
-
-            /* Get socket descriptor - this would be the
-            * socket descriptor for the TCP session.
-            */
-            tcp_sock = sl_Socket(sa->sa_family, SL_SOCK_STREAM, TCP_PROTOCOL_FLAGS);
-            ASSERT_ON_ERROR(tcp_sock, SL_SOCKET_ERROR);
-
-            status = -1;
-
-            while(status < 0)
-            {
-               /* Calling 'sl_Connect' followed by server's
-                * 'sl_Accept' would start session with
-                * the TCP server. */
-               status = sl_Connect(tcp_sock, sa, addrSize);
-               if((status == SL_ERROR_BSD_EALREADY)&& (TRUE == nonBlocking))
-               {
-                   sleep(1);
-                   continue;
-               }
-               else if(status < 0)
-               {
-                   UART_PRINT("[line:%d, error:%d] %s\n\r", __LINE__, status,
-                              SL_SOCKET_ERROR);
-                   sl_Close(tcp_sock);
-                   UART_PRINT("No TCP socket to connect to, terminating program\n");
-                   return(-1);
-               }
-               break;
-            }
-
-            memset(Tx_data, 0, MAX_TX_PACKET_SIZE);
-
-            ts_to_string(timestamps, adc_readings, current_ts_index, Tx_data);
-            //UART_PRINT("%s\n\r", Tx_data);
-
-            //UART_PRINT("%s\n\r", Tx_data);
-
-            sent_bytes = 0;
-            bytes_to_send = strlen(Tx_data);
-
-            status = sl_Send(tcp_sock, &Tx_data, strlen(Tx_data), 0);
-            UART_PRINT("bytes sent: %i\n\r",status);
-            UART_PRINT("String length of TX data: %i\n\r", strlen(Tx_data));
-
-            status = sl_Close(tcp_sock);
-            ASSERT_ON_ERROR(status, SL_SOCKET_ERROR);
-
-            /* After calling sl_WlanDisconnect(),
-            *    we expect WLAN disconnect asynchronous event.
-            * Cleaning the former connection information from
-            * the application control block
-            * is handled in that event handler,
-            * as well as getting the disconnect reason.
-            */
-            sleep(2);
-            status = sl_WlanDisconnect();
-            ASSERT_ON_ERROR(status, WLAN_ERROR);
-
-            UART_PRINT("done sending time sync data and disconnected from AP"
-                   ", will re-enter transceiver mode in a few seconds\n\r");
-            sleep(2);
-            beaconRxSock = enter_tranceiver_mode(0, channel);
-
-            send_beac_ts += send_interval;
-            UART_PRINT("next timestamp to send data at: %u\n\r", send_beac_ts);
+            beaconRxSock = enter_tranceiver_mode(channel, 0, 1);
 
             last_local_ts = 0;
         }
@@ -819,7 +802,7 @@ int32_t test_time_beac_sync()
     sa = (SlSockAddr_t*)&sAddr.in4;
     addrSize = sizeof(SlSockAddrIn6_t);
 
-    beaconRxSock = enter_tranceiver_mode(1, channel);
+    beaconRxSock = enter_tranceiver_mode(channel, 1, 1);
 
     while(1)
     {
@@ -897,95 +880,95 @@ int32_t test_time_beac_sync()
             status = sl_Close(beaconRxSock);
             ASSERT_ON_ERROR(status, SL_SOCKET_ERROR);
 
-            UART_PRINT("its been %u ms (AP timestamp: %u ms), time to send time sync data, "
-                    "will connect to AP and send in a few seconds\n\r", send_interval, frameInfo.timestamp/1000);
+            UART_PRINT("its been %d ms without receiving a new time beacon from AP with SSID \"%s\", will attempt to send back data once AP is re-enabled\n\r",
+                       BEACON_TIME_TRIGGER, AP_SSID);
             sleep(2);
 
-            status = connectToAP();
+            status = connectToAP(4);
             if(status < 0)
+                UART_PRINT("could not connect to AP with SSID \"%s\"\n\r", AP_SSID);
+            else
             {
-                UART_PRINT("could not connect to AP\n\r");
-                return -1;
-            }
+                if(!sAddr.in4.sin_addr.s_addr)
+                    sAddr.in4.sin_addr.s_addr = sl_Htonl((unsigned int)app_CB.CON_CB.GatewayIP);
 
-            if(!sAddr.in4.sin_addr.s_addr)
-                sAddr.in4.sin_addr.s_addr = sl_Htonl((unsigned int)app_CB.CON_CB.GatewayIP);
+                /* Get socket descriptor - this would be the
+                 * socket descriptor for the TCP session.
+                 */
+                tcp_sock = sl_Socket(sa->sa_family, SL_SOCK_STREAM, TCP_PROTOCOL_FLAGS);
+                ASSERT_ON_ERROR(tcp_sock, SL_SOCKET_ERROR);
 
-            /* Get socket descriptor - this would be the
-             * socket descriptor for the TCP session.
-             */
-            tcp_sock = sl_Socket(sa->sa_family, SL_SOCK_STREAM, TCP_PROTOCOL_FLAGS);
-            ASSERT_ON_ERROR(tcp_sock, SL_SOCKET_ERROR);
+                status = -1;
 
-            status = -1;
-
-            while(status < 0)
-            {
-                /* Calling 'sl_Connect' followed by server's
-                 * 'sl_Accept' would start session with
-                 * the TCP server. */
-                status = sl_Connect(tcp_sock, sa, addrSize);
-                if((status == SL_ERROR_BSD_EALREADY)&& (TRUE == nonBlocking))
+                while(status < 0)
                 {
-                    sleep(1);
-                    continue;
-                }
-                else if(status < 0)
-                {
-                    UART_PRINT("[line:%d, error:%d] %s\n\r", __LINE__, status,
-                               SL_SOCKET_ERROR);
-                    sl_Close(tcp_sock);
-                    UART_PRINT("No TCP socket to connect to, terminating program\n\r");
-                    return(-1);
-                }
-                break;
-            }
-
-            memset(Tx_data, 0, MAX_TX_PACKET_SIZE);
-
-            //ts_to_string(timestamps, [1.0, 2.0], current_ts_index, Tx_data);
-
-            sent_bytes = 0;
-            bytes_to_send = strlen(Tx_data);
-            while(sent_bytes < bytes_to_send)
-            {
-                if(bytes_to_send - sent_bytes >= bytes_to_send)
-                {
-                    buflen = bytes_to_send;
-                }
-                else
-                {
-                    buflen = bytes_to_send - sent_bytes;
-                }
-
-                status = sl_Send(tcp_sock, &Tx_data, buflen, 0);
-                if(status < 0)
-                {
-                    UART_PRINT("[line:%d, error:%d] %s\n\r", __LINE__, status,
-                               SL_SOCKET_ERROR);
+                    /* Calling 'sl_Connect' followed by server's
+                     * 'sl_Accept' would start session with
+                     * the TCP server. */
+                    status = sl_Connect(tcp_sock, sa, addrSize);
+                    if((status == SL_ERROR_BSD_EALREADY)&& (TRUE == nonBlocking))
+                    {
+                        sleep(1);
+                        continue;
+                    }
+                    else if(status < 0)
+                    {
+                        UART_PRINT("[line:%d, error:%d] %s\n\r", __LINE__, status,
+                                   SL_SOCKET_ERROR);
+                        sl_Close(tcp_sock);
+                        UART_PRINT("No TCP socket to connect to, terminating program\n\r");
+                        return(-1);
+                    }
                     break;
                 }
-                sent_bytes += status;
+
+                memset(Tx_data, 0, MAX_TX_PACKET_SIZE);
+
+                //ts_to_string(timestamps, [1.0, 2.0], current_ts_index, Tx_data);
+
+                sent_bytes = 0;
+                bytes_to_send = strlen(Tx_data);
+                while(sent_bytes < bytes_to_send)
+                {
+                    if(bytes_to_send - sent_bytes >= bytes_to_send)
+                    {
+                        buflen = bytes_to_send;
+                    }
+                    else
+                    {
+                        buflen = bytes_to_send - sent_bytes;
+                    }
+
+                    status = sl_Send(tcp_sock, &Tx_data, buflen, 0);
+                    if(status < 0)
+                    {
+                        UART_PRINT("[line:%d, error:%d] %s\n\r", __LINE__, status,
+                                   SL_SOCKET_ERROR);
+                        break;
+                    }
+                    sent_bytes += status;
+                }
+
+                status = sl_Close(tcp_sock);
+                ASSERT_ON_ERROR(status, SL_SOCKET_ERROR);
+
+                /* After calling sl_WlanDisconnect(),
+                 *    we expect WLAN disconnect asynchronous event.
+                 * Cleaning the former connection information from
+                 * the application control block
+                 * is handled in that event handler,
+                 * as well as getting the disconnect reason.
+                 */
+                sleep(2);
+                status = sl_WlanDisconnect();
+                ASSERT_ON_ERROR(status, WLAN_ERROR);
+
+                UART_PRINT("done sending time sync data and disconnected from AP"
+                        ", will re-enter transceiver mode in a few seconds\n\r");
+                sleep(2);
             }
 
-            status = sl_Close(tcp_sock);
-            ASSERT_ON_ERROR(status, SL_SOCKET_ERROR);
-
-            /* After calling sl_WlanDisconnect(),
-             *    we expect WLAN disconnect asynchronous event.
-             * Cleaning the former connection information from
-             * the application control block
-             * is handled in that event handler,
-             * as well as getting the disconnect reason.
-             */
-            sleep(2);
-            status = sl_WlanDisconnect();
-            ASSERT_ON_ERROR(status, WLAN_ERROR);
-
-            UART_PRINT("done sending time sync data and disconnected from AP"
-                    ", will re-enter transceiver mode in a few seconds\n\r");
-            sleep(2);
-            beaconRxSock = enter_tranceiver_mode(0, channel);
+            beaconRxSock = enter_tranceiver_mode(channel, 0, 1);
 
             send_beac_ts += send_interval;
             UART_PRINT("next timestamp to send data at: %u\n\r", send_beac_ts);
@@ -1110,15 +1093,15 @@ int32_t accel_to_string(uint32_t timestamps[][NUM_READINGS], float accel_reading
 }
 
 
-_i16 enter_tranceiver_mode(int32_t first_time, uint32_t channel)
+_i16 enter_tranceiver_mode(uint32_t channel, int32_t first_time, int32_t enable_filters)
 {
     /* ALWAYS DECLARE ALL VARIABLES AT TOP OF FUNCTION TO AVOID BUFFER ISSUES */
     _i16 status;
     _u32 nonBlocking = 1;
     _i16 Tx_sock;
-    uint8_t enableFilterArgs[] = "";
 
-    if(first_time == 1){
+    if(enable_filters)
+    {
         uint8_t createFilterArgs1[] = " -f FRAME_TYPE -v management -e not_equals -a drop -m L1";
         uint8_t createFilterArgs2[] = MAC_FILTER_ARGS;
         uint8_t createFilterArgs3[] = " -f FRAME_TYPE -v management -e equals -a pass -m L1";
@@ -1148,20 +1131,21 @@ _i16 enter_tranceiver_mode(int32_t first_time, uint32_t channel)
 
         status = cmdCreateFilterCallback(createFilterArgs6);
         ASSERT_ON_ERROR(status, WLAN_ERROR);
+
+        status = cmdEnableFilterCallback("");
+        ASSERT_ON_ERROR(status, WLAN_ERROR);
     }
 
-
-    status = cmdEnableFilterCallback(enableFilterArgs);
-    ASSERT_ON_ERROR(status, WLAN_ERROR);
-
-
-    /* To use transceiver mode, the device must be set in STA role, be disconnected, and have disabled
-        previous connection policies that might try to automatically connect to an AP. */
-    status = sl_WlanPolicySet(SL_WLAN_POLICY_CONNECTION, SL_WLAN_CONNECTION_POLICY(0, 0, 0, 0), NULL, 0);
-    if( status )
+    if(first_time)
     {
-        UART_PRINT("[line:%d, error:%d]\n\r", __LINE__, status);
-        return(-1);
+        /* To use transceiver mode, the device must be set in STA role, be disconnected, and have disabled
+            previous connection policies that might try to automatically connect to an AP. */
+        status = sl_WlanPolicySet(SL_WLAN_POLICY_CONNECTION, SL_WLAN_CONNECTION_POLICY(0, 0, 0, 0), NULL, 0);
+        if( status )
+        {
+            UART_PRINT("[line:%d, error:%d]\n\r", __LINE__, status);
+            return(-1);
+        }
     }
 
     Tx_sock = sl_Socket(SL_AF_RF, SL_SOCK_DGRAM, channel);
