@@ -1,1 +1,0 @@
-"./adcsinglechannel.obj" "./syscfg/ti_drivers_config.obj" "./main_tirtos.obj" "../cc32xxsf_tirtos.cmd" -lti_utils_build_linker.cmd.genlibs -l"C:/Users/Jonah/Desktop/Jonah/1Senior/SDP/SDP-2020-Team30/ccs_workspace/tirtos_builds_cc32xx_release_ccs/Debug/configPkg/linker.cmd" -l"ti/devices/cc32xx/driverlib/ccs/Release/driverlib.a" -llibc.a 
