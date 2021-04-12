@@ -28,15 +28,22 @@
 #define BUF_LEN                     (MAX_BUF_SIZE - 20)
 
 /* custom defines */
-#define AP_SSID                     "Jonah_AP"
-#define AP_KEY                      "1234567890"
+#define AP_SSID                     "test_ap_2"
+#define AP_KEY                      "87654321"
 #define ENTRY_PORT                  10000
 #define BILLION                     1000000000
 #define MESSAGE_SIZE                50
 #define NUM_READINGS                800
 #define MAX_RX_PACKET_SIZE          1544
 #define MAX_TX_PACKET_SIZE          100000
-#define BEACON_TIME_TRIGGER         1000           // in ms
+#define BEACON_TIME_TRIGGER         1000    // in ms
+#define START_CHANNEL               1
+//#define MAC_FILTER_ARGS           " -f S_MAC -v 58:FB:84:5D:70:05 -e not_equals -a drop -m L1"
+//#define MAC_FILTER_ARGS           " -f S_MAC -v 58:00:e3:43:6b:63 -e not_equals -a drop -m L1"
+//#define MAC_FILTER_ARGS           " -f S_MAC -v 6a:00:e3:43:6b:63 -e not_equals -a drop -m L1"
+//#define MAC_FILTER_ARGS           " -f S_MAC -v BE:91:80:53:29:14 -e not_equals -a drop -m L1"
+#define MAC_FILTER_ARGS             " -f S_MAC -v 6C:B0:CE:85:7B:D8 -e not_equals -a drop -m L1"
+#define CHANNEL_TIMEOUT             5       //in sec
 
 typedef struct
 {
