@@ -260,6 +260,7 @@ int32_t time_beacons_and_accelerometer(ADC_Handle *adc0, ADC_Handle *adc1, ADC_H
             }
             // otherwise at this point the first successful beacon should have been received from the specified AP MAC addy
             UART_PRINT("Beacon frame found from AP with SSID \"%s\" on channel %d\n\r", AP_SSID, channel);
+            parse_beacon_frame(Rx_frame, &frameInfo, 1);
             break;
         }
 
@@ -296,8 +297,7 @@ int32_t time_beacons_and_accelerometer(ADC_Handle *adc0, ADC_Handle *adc1, ADC_H
             }
             //UART_PRINT("Beacon recieved \n\r");
 
-
-            parse_beacon_frame(Rx_frame, &frameInfo, 0);
+            parse_beacon_frame(Rx_frame, &frameInfo, 1);
             if(frameInfo.timestamp != badbeacon && frameInfo.timestamp != last_beac_ts){
                 last_beac_ts = frameInfo.timestamp;
                 beacon_count+=1;
@@ -1121,12 +1121,32 @@ _i16 enter_tranceiver_mode(int32_t first_time, uint32_t channel)
     if(first_time == 1){
         uint8_t createFilterArgs1[] = " -f FRAME_TYPE -v management -e not_equals -a drop -m L1";
         uint8_t createFilterArgs2[] = MAC_FILTER_ARGS;
-
+        uint8_t createFilterArgs3[] = " -f FRAME_TYPE -v management -e equals -a pass -m L1";
+        uint8_t createFilterArgs4[60];
+        uint8_t createFilterArgs5[60];
+        uint8_t createFilterArgs6[60];
 
         status = cmdCreateFilterCallback(createFilterArgs1);
         ASSERT_ON_ERROR(status, WLAN_ERROR);
 
         status = cmdCreateFilterCallback(createFilterArgs2);
+        ASSERT_ON_ERROR(status, WLAN_ERROR);
+
+        status = cmdCreateFilterCallback_ID(createFilterArgs3);
+        ASSERT_ON_ERROR(status, WLAN_ERROR);
+
+        sprintf(createFilterArgs4, " -f FRAME_SUBTYPE -v 0x80 -e not_equals -a drop -m L1 -i %d", status);
+        sprintf(createFilterArgs5, " -f FRAME_SUBTYPE -v 0x80 -e equals -a pass -m L1 -i %d", status);
+
+        status = cmdCreateFilterCallback(createFilterArgs4);
+        ASSERT_ON_ERROR(status, WLAN_ERROR);
+
+        status = cmdCreateFilterCallback(createFilterArgs5);
+        ASSERT_ON_ERROR(status, WLAN_ERROR);
+
+        sprintf(createFilterArgs6, " -f D_MAC -v ff:ff:ff:ff:ff:ff -e not_equals -a drop -m L1 -i %d", status);
+
+        status = cmdCreateFilterCallback(createFilterArgs6);
         ASSERT_ON_ERROR(status, WLAN_ERROR);
     }
 

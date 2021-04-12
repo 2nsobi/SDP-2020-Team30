@@ -71,6 +71,8 @@ int32_t printConnectedStationsUsage(void *arg);
 
 int32_t cmdCreateFilterCallback(void *arg);
 
+int8_t cmdCreateFilterCallback_ID(void *arg);
+
 int32_t printCreateFilterUsage(void *arg);
 
 int32_t cmdEnableFilterCallback(void *arg);

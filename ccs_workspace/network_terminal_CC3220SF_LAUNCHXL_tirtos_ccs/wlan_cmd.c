@@ -1124,6 +1124,112 @@ int32_t cmdCreateFilterCallback(void *arg)
 }
 
 /*!
+    \brief          Create RX filter callback.
+
+    This routine shows how to create an RX filter.
+    These filter are created and added here, yet in order to get them to work
+    calling 'enablefilter' command is necessary.
+
+    \param          arg       -   Points to command line buffer.
+                                  This container would be passed to the
+                                  parser module.
+
+    \return         Upon successful completion, the function shall return the filter's ID.
+                    In case of failure, this function would return -1;
+
+    \note           For more information about RX filters please refer to:
+                    please refer to CC31xx/CC32xx NWP
+                    programmer's guide (SWRU455)
+
+    \sa             ParseCreateFilterCmd
+
+*/
+int8_t cmdCreateFilterCallback_ID(void *arg)
+{
+    int32_t           ret;
+    CreateFilterCmd_t CreateFilterParams;
+
+    /* Call the command parser */
+    memset(&CreateFilterParams, 0x0, sizeof(CreateFilterParams));
+    ret = ParseCreateFilterCmd(arg , &CreateFilterParams);
+
+    if(ret < 0)
+    {
+        return(-1);
+    }
+
+    /*   These fields are required in order to configure
+                                            and successfully add an RX filter:
+     *
+     *   SlWlanRxFilterRuleType_t     ruleType  : What kind of filter to
+                                                  create: filter packets by
+     *                                            Header fields or define a
+                                                  combination filter.
+     *
+     *   SlWlanRxFilterFlags_u        flags     : Dictates the following filter
+                                                  settings and properties:
+     *                                            Persistent - namely if filter
+                                                  is retained after reset
+     *                                            filter status -
+                                                 (enabled/disabled).
+     *                                            Comparison rule -
+                                                  Binary values are
+                                                    compared when looking
+                                                  for match,
+     *                                            or strings are compared
+                                                  when checking for
+                                                  a criteria match.
+     *
+     *   SlWlanRxFilterRule_u         rule      : Defines match criteria -
+                                                   decides which compare
+                                                  criteria to use
+     *                                            when looking for match.
+                                                  (Fields, arguments or
+                                                  compare function).
+     *
+     *   SlWlanRxFilterTrigger_t      trigger   : Sets preconditions to
+                                                    trigger the filter.
+                                                  Given a filter and
+                                                  trigger conditions,
+     *                                            filter action would
+                                                  triggered if and only
+                                                  if a filter match has
+                                                  occurred and these
+                                                  pre-conditions are met.
+     *
+     *   SlWlanRxFilterAction_t       action    : Operation to execute upon
+                                                  a filter match - Could be
+                                                  Host async event from NWP,
+     *                                            or dropping the packet.
+     *
+     *   SlWlanRxFilterID_t           filterID  : Unique ID Returned by
+                                                  'sl_WlanRxFilterAdd()'
+     *                                            So user could access and
+                                                  enable the created filter.
+     *
+     *   It is highly advised to see how these components
+          of the RX filter are filled.
+     *   For more info. please refer to: ParseCreateFilterCmd.
+     */
+
+    /* Add filter. Note: Filters are not enabled yet! */
+    ret = sl_WlanRxFilterAdd(CreateFilterParams.ruleType,
+                             CreateFilterParams.flags,
+                             &(CreateFilterParams.rule),
+                             &(CreateFilterParams.trigger),
+                             &(CreateFilterParams.action),
+                             &(CreateFilterParams.filterID));
+
+    ASSERT_ON_ERROR(ret, WLAN_ERROR);
+
+    UART_PRINT(
+      "\r\n[Create filter] : Filter Created successfully, filters ID = %d\r\n",
+      CreateFilterParams.filterID);
+
+    return(CreateFilterParams.filterID);
+}
+
+/*!
     \brief          Prints create filter command help menu.
 
     \param          arg       -   Points to command line buffer.
