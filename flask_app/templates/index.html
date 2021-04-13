@@ -1,0 +1,82 @@
+<!--header stuff from materialize css quick start guide-->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1.0"/>
+    <title>Starter Template - Materialize</title>
+    <link rel="shortcut icon" href="{{ url_for('static', filename='favicon.ico') }}">
+
+    <!--Import Google Icon Font-->
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+
+    <!-- Compiled and minified CSS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/css/materialize.min.css">
+
+    <!-- Compiled and minified JavaScript -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/materialize/1.0.0/js/materialize.min.js"></script>
+</head>
+
+<!--body from the materialize css Starter Template template-->
+<body>
+<nav class="black" role="navigation">
+    <div class="nav-wrapper container">
+        <a id="logo-container" href="#" class="brand-logo">
+            <div><img class="responsive-img" src="/static/true_base_logo.png" alt="True Base Logo" style="height: 64px">
+            </div>
+        </a>
+
+        <ul class="right hide-on-med-and-down">
+            <li><a href="http://www.ecs.umass.edu/sdp/sdp21/team30"><font size="4"><b>SDP Website</b></font></a></li>
+        </ul>
+
+        <ul id="nav-mobile" class="sidenav black">
+            <li>
+                <div class="user-view">
+                    <a href="#"><img class="responsive-img" src="/static/true_base_logo.png" alt="True Base Logo"></a>
+                </div>
+            </li>
+            <li><a class="white-text" href="http://www.ecs.umass.edu/sdp/sdp21/team30"><font size="4">SDP Website</font></a>
+            </li>
+        </ul>
+        <a href="#" data-target="nav-mobile" class="sidenav-trigger"><i class="material-icons">menu</i></a>
+    </div>
+</nav>
+
+<div class="container">
+    <div class="section"></div>
+
+    <div class="row section">
+        <div class="col s6 right-align">
+            <button name="modulesPlotButton" class="btn btn-large waves-effect waves-light red" type="button"
+                    onclick="reloadModulesPlot();">
+                <b>Retrieve New Module Data</b>
+            </button>
+        </div>
+        <div class="col s6 left-align">
+            <button name="viewModulesPlotButton" class="btn btn-large waves-effect waves-light grey" type="button"
+                    onclick="viewModulesPlot();">
+                <b>View Latest Module Data</b>
+            </button>
+        </div>
+    </div>
+
+    <div class="section center-align">
+        <iframe name="modulesPlotIframe" src="/dummy-page" width="700" height="500"></iframe>
+    </div>
+</div>
+
+<footer class="page-footer black" style="position:fixed;bottom:0;left:0;width:100%;">
+    <div class="footer-copyright black center-align">
+        <div class="container grey-text">
+            Base Station GUI Demo
+        </div>
+    </div>
+</footer>
+
+<!--JavaScript at end of body for optimized loading-->
+<script type="text/javascript" src="/static/index.js"></script>
+
+</body>
+
+</html>

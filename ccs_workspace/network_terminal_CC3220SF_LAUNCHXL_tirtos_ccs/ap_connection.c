@@ -366,7 +366,7 @@ int32_t time_beacons_and_accelerometer(ADC_Handle *adc0, ADC_Handle *adc1, ADC_H
                        BEACON_TIME_TRIGGER, AP_SSID);
             sleep(2);
 
-            status = connectToAP(4);
+            status = connectToAP(3);
             if(status < 0)
                 UART_PRINT("could not connect to AP with SSID \"%s\"\n\r", AP_SSID);
             else
@@ -426,7 +426,8 @@ int32_t time_beacons_and_accelerometer(ADC_Handle *adc0, ADC_Handle *adc1, ADC_H
                 */
                 sleep(2);
                 status = sl_WlanDisconnect();
-                ASSERT_ON_ERROR(status, WLAN_ERROR);
+                if(status < 0)
+                    UART_PRINT("[line:%d, error code:%d] %s\n\r", __LINE__, status, WLAN_ERROR);
                 sleep(2);
             }
 
@@ -656,7 +657,7 @@ int32_t time_beacons_and_load_cell(ADC_Handle *adc0)
                        BEACON_TIME_TRIGGER, AP_SSID);
             sleep(2);
 
-            status = connectToAP(4);
+            status = connectToAP(3);
             if(status < 0)
                 UART_PRINT("could not connect to AP with SSID \"%s\"\n\r", AP_SSID);
             else
@@ -717,7 +718,8 @@ int32_t time_beacons_and_load_cell(ADC_Handle *adc0)
                 */
                 sleep(2);
                 status = sl_WlanDisconnect();
-                ASSERT_ON_ERROR(status, WLAN_ERROR);
+                if(status < 0)
+                    UART_PRINT("[line:%d, error code:%d] %s\n\r", __LINE__, status, WLAN_ERROR);
                 sleep(2);
             }
 
@@ -884,7 +886,7 @@ int32_t test_time_beac_sync()
                        BEACON_TIME_TRIGGER, AP_SSID);
             sleep(2);
 
-            status = connectToAP(4);
+            status = connectToAP(3);
             if(status < 0)
                 UART_PRINT("could not connect to AP with SSID \"%s\"\n\r", AP_SSID);
             else
@@ -961,7 +963,8 @@ int32_t test_time_beac_sync()
                  */
                 sleep(2);
                 status = sl_WlanDisconnect();
-                ASSERT_ON_ERROR(status, WLAN_ERROR);
+                if(status < 0)
+                    UART_PRINT("[line:%d, error code:%d] %s\n\r", __LINE__, status, WLAN_ERROR);
 
                 UART_PRINT("done sending time sync data and disconnected from AP"
                         ", will re-enter transceiver mode in a few seconds\n\r");

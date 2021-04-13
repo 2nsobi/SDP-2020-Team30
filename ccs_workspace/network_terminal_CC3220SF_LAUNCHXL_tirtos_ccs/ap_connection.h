@@ -28,8 +28,8 @@
 #define BUF_LEN                     (MAX_BUF_SIZE - 20)
 
 /* custom defines */
-#define AP_SSID                     "test_ap_2"
-#define AP_KEY                      "87654321"
+#define AP_SSID                     "true_base_ap"
+#define AP_KEY                      "sdp-2021"
 #define ENTRY_PORT                  10000
 #define BILLION                     1000000000
 #define MESSAGE_SIZE                50
