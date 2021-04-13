@@ -366,7 +366,7 @@ int32_t time_beacons_and_accelerometer(ADC_Handle *adc0, ADC_Handle *adc1, ADC_H
                        BEACON_TIME_TRIGGER, AP_SSID);
             sleep(2);
 
-            status = connectToAP(3);
+            status = connectToAP(1);
             if(status < 0)
                 UART_PRINT("could not connect to AP with SSID \"%s\"\n\r", AP_SSID);
             else
@@ -657,7 +657,7 @@ int32_t time_beacons_and_load_cell(ADC_Handle *adc0)
                        BEACON_TIME_TRIGGER, AP_SSID);
             sleep(2);
 
-            status = connectToAP(3);
+            status = connectToAP(1);
             if(status < 0)
                 UART_PRINT("could not connect to AP with SSID \"%s\"\n\r", AP_SSID);
             else
@@ -886,7 +886,7 @@ int32_t test_time_beac_sync()
                        BEACON_TIME_TRIGGER, AP_SSID);
             sleep(2);
 
-            status = connectToAP(3);
+            status = connectToAP(1);
             if(status < 0)
                 UART_PRINT("could not connect to AP with SSID \"%s\"\n\r", AP_SSID);
             else

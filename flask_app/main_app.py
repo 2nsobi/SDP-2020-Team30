@@ -1,6 +1,6 @@
 """
 set these env vars too (use 'set' on windows and 'export' on unix):
-- FLASK_APP=app.py (to tell the terminal the application to work)
+- FLASK_APP=flask_app.py (to tell the terminal the application to work)
 - FLASK_ENV=development (for debug mode)
 """
 from flask import Flask, render_template, render_template_string, Blueprint
@@ -66,3 +66,13 @@ def loading_modules_plot():
     if loading_plots:
         return "true"
     return "false"
+
+
+@views.route('/loader-animation')
+def loader_animation():
+    return render_template('loader.html')
+
+
+@views.route('/failed-loading-plot')
+def failed_loading_plot():
+    return render_template_string("<div style=\"font-family: \"sans-serif\"\">Failed to Load Module Data Plot</div>")
