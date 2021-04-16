@@ -1,7 +1,7 @@
 import socket
 import time
 import os
-from PyAccessPoint import pyaccesspoint
+# from PyAccessPoint import pyaccesspoint
 import datetime
 import logging
 import math
@@ -132,13 +132,13 @@ def linux(plot=True, plot_1=False):
         plot_tcp_data(readings["wrist"], readings["base"])
 
 
-def windows(plot=True, plot_1=False):
+def windows(plot=True, plot_1=True):
     # plot: indicates whether or not to plot
     # plot_1: indicates whether or not to plot only 1 board's output (cannot be true if plot is false)
     global ENTRY_PORT
 
-    ap = WindowsSoftAP(ssid="test_ap_2", key="87654321")
-    ap.start_ap()
+    ap = WindowsSoftAP(ssid="true_base_ap", key="sdp-2021")
+    #ap.start_ap()
     server_ip = ap.get_ipv4()
     if server_ip is None:
         logger.info('server_ip is None')

@@ -3,6 +3,10 @@ set these env vars too (use 'set' on windows and 'export' on unix):
 - FLASK_APP=flask_app.py (to tell the terminal the application to work)
 - FLASK_ENV=development (for debug mode)
 """
+import datetime
+import os
+
+import numpy
 from flask import Flask, render_template, render_template_string, Blueprint
 import matplotlib.pyplot as plt
 import mpld3
@@ -46,13 +50,68 @@ def load_modules_plot():
         # print(len(wrist_x_axis), len(wrist_y))
         # print(len(base_x_axis), len(base_y))
 
-        fig, ax = plt.subplots()
-        ax.plot(wrist_x_axis, wrist_y, label="wrist")
-        ax.plot(base_x_axis, base_y, label="base")
+        fig, ax = plt.subplots(2)
+        ax[0].plot(wrist_x_axis, wrist_y, label="wrist")
+        ax[0].plot(base_x_axis, base_y, label="base")
 
-        ax.set_xlabel("Beacon Timestamp in ms")
-        ax.set_ylabel("Relative ADC readings")
-        ax.legend()
+        ax[0].set_xlabel("Beacon Timestamp in ms")
+        ax[0].set_ylabel("Relative ADC readings")
+        ax[0].legend()
+
+        wrist_1d = [x[0] for x in wrist_y.tolist()]
+        base_1d = [x[0] for x in base_y.tolist()]
+        wrist_derivative = numpy.gradient(wrist_1d)
+        base_derivative = numpy.gradient(base_1d)
+
+        ax[1].plot(wrist_x_axis, wrist_derivative, label="wrist_derivative")
+        ax[1].plot(base_x_axis, base_derivative, label="base_derivative")
+
+        ax[1].set_xlabel("Beacon Timestamp in ms")
+        ax[1].set_ylabel("Derivative of ADC Readings")
+        ax[1].legend()
+        plt.show()
+
+        # save fig to image to disk---------------------------------------------------
+
+        # if root folder does not exist, save it
+        same_time_data_folder = os.path.join(os.getcwd(), "same_time_trigger_data")
+        if not os.path.exists(same_time_data_folder):
+            os.mkdir(same_time_data_folder)
+
+        # save folder is in the format year month day hour min sec
+        a = str(datetime.datetime.now()).split(".")[0]
+        b = a.replace(" ", "_")
+        folder_name = b.replace(":", ";")
+        folder_path = os.path.join(same_time_data_folder, folder_name)
+
+        #make the folder
+        os.mkdir(folder_path)
+        fig.savefig(os.path.join(folder_path, "output.png"))
+
+        # save base module data
+        base_txt_file = os.path.join(folder_path, "base_data.txt")
+        f = open(base_txt_file, 'w')
+        base_x = str(base_x_axis[0])
+        for i in range(1, len(base_x_axis)):
+            base_x += "," + str(base_x_axis[i])
+        f.write(str(base_x))
+        f.write("\n")
+        base_y_arr = [x[0] for x in base_y.tolist()]
+        f.write(str(base_y_arr))
+        f.close()
+
+        # save wrist module data
+        wrist_txt_file = os.path.join(folder_path, "wrist_data.txt")
+        f = open(wrist_txt_file, 'w')
+        wrist_x = str(wrist_x_axis[0])
+        for i in range(1, len(wrist_x_axis)):
+            wrist_x += "," + str(wrist_x_axis[i])
+        f.write(str(wrist_x))
+        f.write("\n")
+        wrist_y_arr = [x[0] for x in wrist_y.tolist()]
+        f.write(str(wrist_y_arr))
+        f.close()
+        #----------------------------------------------------------------
 
         modules_plot_html = mpld3.fig_to_html(fig)
 

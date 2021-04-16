@@ -33,11 +33,11 @@
 #define ENTRY_PORT                  10000
 #define BILLION                     1000000000
 #define MESSAGE_SIZE                50
-#define NUM_READINGS                800
+#define NUM_READINGS                900
 #define MAX_RX_PACKET_SIZE          1544
 #define MAX_TX_PACKET_SIZE          100000
 #define BEACON_TIME_TRIGGER         2000    // in ms
-#define START_CHANNEL               1
+#define START_CHANNEL               11
 //#define MAC_FILTER_ARGS           " -f S_MAC -v 58:FB:84:5D:70:05 -e not_equals -a drop -m L1"
 //#define MAC_FILTER_ARGS           " -f S_MAC -v 58:00:e3:43:6b:63 -e not_equals -a drop -m L1"
 //#define MAC_FILTER_ARGS           " -f S_MAC -v 6a:00:e3:43:6b:63 -e not_equals -a drop -m L1"

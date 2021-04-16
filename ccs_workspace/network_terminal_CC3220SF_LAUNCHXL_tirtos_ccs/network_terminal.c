@@ -1945,7 +1945,7 @@ void * mainThread(void *arg)
 
 //--------------------------------------------------------------------------------------------------------------------------------------------------
 //ADC SETUP
-    bool load_cell = 0;  //1 if base module, 0 if wrist module
+    bool load_cell = 1;  //1 if base module, 0 if wrist module
     ADC_Handle   adc0, adc1, adc2;
     ADC_Params   params;
 

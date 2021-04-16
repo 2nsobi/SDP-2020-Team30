@@ -300,6 +300,7 @@ int32_t time_beacons_and_accelerometer(ADC_Handle *adc0, ADC_Handle *adc1, ADC_H
                 last_beac_ts = frameInfo.timestamp;
                 beacon_count+=1;
                 UART_PRINT("%d beacons received\n\r", beacon_count);
+                //UART_PRINT("Beacon_ts: %u\n\r", frameInfo.timestamp);
                 last_local_ts = (int32_t) (cur_time.tv_sec * 1000 + cur_time.tv_nsec / 1000000);
             }
 
@@ -343,9 +344,8 @@ int32_t time_beacons_and_accelerometer(ADC_Handle *adc0, ADC_Handle *adc1, ADC_H
             adc_readings[current_ts_index] = accel_sqr;
             //UART_PRINT("Beacon_ts interval: %d\n\r", last_beac_ts-frameInfo.timestamp);
             //UART_PRINT("Beacon_ts: %d\n\r", frameInfo.timestamp);
-
             current_ts_index = (current_ts_index + 1) % NUM_READINGS;
-            usleep(9000);   //sleep for 10 ms
+            usleep(6000);
             clock_gettime(CLOCK_REALTIME, &cur_time);
         }
 
@@ -635,7 +635,7 @@ int32_t time_beacons_and_load_cell(ADC_Handle *adc0)
             current_ts_index = (current_ts_index + 1) % NUM_READINGS;
     //        last_beac_ts = frameInfo.timestamp;
             last_hw_timestamp = hw_timestamp;
-            usleep(9000);   //sleep for 10 ms
+            usleep(6000);   //sleep for 3 ms
             clock_gettime(CLOCK_REALTIME, &cur_time);
         }
 
