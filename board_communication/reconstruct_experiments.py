@@ -106,9 +106,9 @@ def get_all_timestamps(folder = "same_time", hist = True, plot_greater_than = No
     # if plot_greater than is not none, it should be an int, and for each experiment where the difference is
     # greater than <plot_greater_than> the experiment will be plotted
     # if hist_limit is not none, then it should be an integer that will limit the x axis range for the histogram
-    if folder is "same_time":
+    if folder == "same_time":
         folder = os.path.join(os.getcwd(), "same_time_trigger_data")
-    if folder is "slomo":
+    if folder == "slomo":
         folder = os.path.join(os.getcwd(), "slo_mo_testing")
 
     #print(len(os.listdir(folder)))
@@ -139,8 +139,128 @@ def get_all_timestamps(folder = "same_time", hist = True, plot_greater_than = No
         plt.ylabel("Frequency")
         plt.show()
 
+def analyze_slomo(hist_limit = None, diff_threshold = 100, plot = True):
+    # hist_limit: (int) only include differences in the histogram of less than hist_limit
+    # plot: (bool) if true, plot graphs of experiments where the system was wrong according to the video
+    safe = None
+    folder = os.path.join(os.getcwd(), "slo_mo_testing")
+    experiments = os.listdir(folder)
+    print("{} slomo experiments".format(len(experiments)))
+
+    total_correct = 0
+    diff_between_est_actual = []
+    under_35_total = 0
+    under_35_correct = 0
+    over_35_total = 0
+    over_35_correct = 0
+
+    for experiment in experiments:
+        exp_folder = os.path.join(folder, experiment)
+        wrst_x, wrst_y, wrst_der, base_x, base_y, base_der = parse_same_time_experiment(exp_folder,
+                                                                                        plot=False)
+        wrist_ts, base_ts = calculate_timestamps(wrst_x, wrst_der, base_x, base_der)
+        exp_diff = wrist_ts - base_ts
+        if exp_diff > 0:    #base ts is lower, base came first, runner is safe
+            safe = True
+            pred_module_first = "base"
+        else:
+            safe = False
+            pred_module_first = "wrist"
+        for exp_file in os.listdir(exp_folder):
+            if exp_file.find("video")>=0:
+                video_file = os.path.join(exp_folder,exp_file)
+        module_first, elapsed = retrieve_slomo_data(video_file)
+        if abs(elapsed) > 35:
+            over_35_total +=1
+        else:
+            under_35_total +=1
+        diff_in_est_time = abs(exp_diff) - abs(elapsed)
+        trial_number = ""
+        for i in os.path.split(video_file)[1]:
+            if i.isdigit():
+                trial_number += i
+            else:
+                break
+        if hist_limit is not None:
+            if abs(diff_in_est_time) < hist_limit:
+                diff_between_est_actual.append(diff_in_est_time)
+        else:
+            diff_between_est_actual.append(diff_in_est_time)
+        if module_first == pred_module_first:
+            total_correct +=1
+            if abs(elapsed) > 35:
+                over_35_correct +=1
+            else:
+                under_35_correct +=1
+        else:
+            print("Incorrect prediction for experiment {}".format(experiment))
+            print("Trial number {}".format(trial_number))
+            if plot:
+                plot_with_ts(wrst_x, wrst_y, wrst_der, wrist_ts,
+                             base_x, base_y, base_der, base_ts, exp_folder)
+                print("\tDifference in est time for trial {} is {}".format(trial_number, diff_in_est_time))
+                print("\tSystem est time: {:4f}".format(exp_diff))
+                print("\tVideo est time: {:4f}".format(elapsed))
+        if diff_threshold is not None:
+            if abs(diff_in_est_time) > diff_threshold:
+                print("Difference in est time for trial {} is {}".format(trial_number, diff_in_est_time))
+                print("System est time: {:4f}".format(exp_diff))
+                print("Video est time: {:4f}".format(elapsed))
+                plot_with_ts(wrst_x, wrst_y, wrst_der, wrist_ts,
+                             base_x, base_y, base_der, base_ts, exp_folder)
+
+    print("{} total correct out of {} trials, {:4f}%".format(total_correct, len(experiments),
+                                                             100*total_correct/len(experiments)))
+    print("UNDER 35 MS: {} total correct out of {} trials, {:4f}%".format(under_35_correct, under_35_total,
+                                                             100 * under_35_correct /under_35_total))
+    print("OVER 35 MS: {} total correct out of {} trials, {:4f}%".format(over_35_correct, over_35_total,
+                                                                          100 * over_35_correct / over_35_total))
+
+
+    plt.hist(diff_between_est_actual, bins=30)
+    plt.title("Difference between TrueBase Time Difference "
+              "and Slo-mo Time Difference\n{} trials".format(len(diff_between_est_actual)))
+    plt.xlabel("Difference in ms")
+    plt.ylabel("Frequency")
+    plt.show()
+
+def create_video_txt_files_slomo():
+    folder = os.path.join(os.getcwd(), "slo_mo_testing")
+    experiments = os.listdir(folder)
+    print("{} slomo experiments".format(len(experiments)))
+    for i in range(len(experiments)):
+        exp_folder = os.path.join(folder, experiments[i])
+        exp_files = os.listdir(exp_folder)
+        for exp_file in exp_files:
+            if exp_file.find("video")>=0:
+                remove_file = os.path.join(exp_folder, exp_file)
+                os.remove(remove_file)
+        fname = "{}video.txt".format(str(i+1))
+        fpath = os.path.join(exp_folder,fname)
+        f = open(fpath, 'w+')
+        f.close()
+
+
+def retrieve_slomo_data(file):
+    f = open(file,'r')
+    a = f.readline()
+    b = a.split(",")
+    module_first = b[0]
+    frame_rate = int(b[1])
+    #frame_rate = 25
+    frames_between = int(b[2])
+    elapsed = 1000*float(frames_between)/frame_rate
+    return module_first, elapsed
+
+def test_slomo_video_retrieval():
+    file = os.path.join(os.getcwd(), "slo_mo_testing", "2021-04-20_12;09;49", "1video.txt")
+    b = retrieve_slomo_data(file)
+    print(b)
 
 if __name__ == '__main__':
     # filename = "2021-04-15_23;29;55"
     # same_time_experiment_reconstruct(filename)
-    get_all_timestamps(hist_limit=None, plot_greater_than=None)
+    #get_all_timestamps(hist_limit=None, plot_greater_than=50)
+    #create_video_txt_files_slomo()
+    analyze_slomo(hist_limit=40, plot=False, diff_threshold=50)
+    #test_slomo_video_retrieval()
