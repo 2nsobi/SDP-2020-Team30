@@ -66,6 +66,10 @@ def calculate_timestamps(wrist_x, wrist_der, base_x, base_der, threshold = 0.1):
         if abs(base_der[i]) > threshold:
             base_ts = base_x[i]
             break
+
+    if wrist_ts is None or base_ts is None:
+        return calculate_timestamps(wrist_x, wrist_der, base_x, base_der, threshold=threshold-0.1)
+
     return wrist_ts, base_ts
 
 def plot_with_ts(wrst_x, wrst_y, wrst_der, wrst_ts, base_x, base_y, base_der, base_ts, folder):
@@ -262,5 +266,5 @@ if __name__ == '__main__':
     # same_time_experiment_reconstruct(filename)
     #get_all_timestamps(hist_limit=None, plot_greater_than=50)
     #create_video_txt_files_slomo()
-    analyze_slomo(hist_limit=40, plot=False, diff_threshold=50)
+    analyze_slomo(hist_limit=300, plot=True, diff_threshold=None)
     #test_slomo_video_retrieval()

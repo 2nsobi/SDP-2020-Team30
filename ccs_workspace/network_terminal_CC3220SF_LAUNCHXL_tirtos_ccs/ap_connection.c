@@ -30,7 +30,7 @@ uint8_t Tx_data[MAX_TX_PACKET_SIZE];
 uint32_t timestamps[2][NUM_READINGS];
 float adc_readings[NUM_READINGS];
 uint32_t hw_timestamps[1];
-uint32_t channels_to_check[3] = {1,6,11};
+uint32_t channels_to_check[14] = {1,2,3,4,5,6,7,8,9,10,11,12,13,14};
 
 int32_t connectToAP(int32_t max_retries)
 {
@@ -219,6 +219,12 @@ int32_t time_beacons_and_accelerometer(ADC_Handle *adc0, ADC_Handle *adc1, ADC_H
     float accel_sqr;
     uint32_t channel_timeout_time;
     int32_t i;
+    int32_t successful_beacons;
+    int32_t retries;
+    int32_t found_channel;
+    int32_t switch_channel;
+    uint32_t cur_time_ms;
+    uint32_t last_time_ms;
 
     int res0, res1, res2;
     uint16_t adcraw0, adcraw1, adcraw2;
@@ -239,13 +245,18 @@ int32_t time_beacons_and_accelerometer(ADC_Handle *adc0, ADC_Handle *adc1, ADC_H
 
     beaconRxSock = enter_tranceiver_mode(channel, 1, 1);
 
-    // just loop until a beacon frame is received successfully
+    // just loop until SUCCESSFUL_BEACONS_THRESH number of beacon frames are received successfully
     clock_gettime(CLOCK_REALTIME, &cur_time);
-    channel_timeout_time = cur_time.tv_sec;
+    channel_timeout_time = 0;
     i = -1; // start at -1 so that the first channel checked is the first elem in channels_to_check[]
+    successful_beacons = 0;
+    retries = 0;
+    found_channel = 0;
+    switch_channel = 0;
     while(1)
     {
         clock_gettime(CLOCK_REALTIME, &cur_time);
+        cur_time_ms = (uint32_t)(cur_time.tv_sec * 1000 + (unsigned long)cur_time.tv_nsec / 1000000);
         numBytes = sl_Recv(beaconRxSock, &Rx_frame, MAX_RX_PACKET_SIZE, 0);
 
         if(numBytes != SL_ERROR_BSD_EAGAIN)
@@ -257,13 +268,34 @@ int32_t time_beacons_and_accelerometer(ADC_Handle *adc0, ADC_Handle *adc1, ADC_H
                            SL_SOCKET_ERROR);
                 continue;
             }
-            // otherwise at this point the first successful beacon should have been received from the specified AP MAC addy
-            UART_PRINT("Beacon frame found from AP with SSID \"%s\" on channel %d\n\r", AP_SSID, channel);
-            break;
+
+            parse_beacon_frame(Rx_frame, &frameInfo, 0);
+            found_channel = 1;
+            retries++;
+
+            if(cur_time_ms - last_time_ms <= frameInfo.beaconIntervalUs/1000)
+            {
+                successful_beacons++;
+                if(successful_beacons == SUCCESSFUL_BEACONS_THRESH)
+                {
+                    UART_PRINT("Beacon frame found from AP with SSID \"%s\" on channel %d\n\r", AP_SSID, channel);
+                    break;
+                }
+            }
+
+            if(retries == SUCCESSFUL_BEACONS_THRESH)
+            {
+                found_channel = 0;
+                retries = 0;
+                successful_beacons = 0;
+                switch_channel = 1;
+            }
+
+            last_time_ms = cur_time_ms;
         }
 
         // change channel every CHANNEL_TIMEOUT to see if the AP is broadcasting on a diff channel
-        if(cur_time.tv_sec - channel_timeout_time > CHANNEL_TIMEOUT)
+        if((channel_timeout_time != 0 && cur_time_ms/1000 - channel_timeout_time > CHANNEL_TIMEOUT | switch_channel) && !found_channel)
         {
             UART_PRINT("No beacon frames found from AP with SSID \"%s\" on channel %d in past %d seconds\n\r", AP_SSID, channel, CHANNEL_TIMEOUT);
             status = sl_Close(beaconRxSock);
@@ -277,6 +309,8 @@ int32_t time_beacons_and_accelerometer(ADC_Handle *adc0, ADC_Handle *adc1, ADC_H
 
             UART_PRINT("Switching to channel %d to check for beacon frames from AP with SSID \"%s\"\n\r", channel, AP_SSID);
             beaconRxSock = enter_tranceiver_mode(channel, 0, 0);
+
+            switch_channel = 0;
         }
     }
 
@@ -513,6 +547,12 @@ int32_t time_beacons_and_load_cell(ADC_Handle *adc0)
     uint32_t badbeacon = 184812040;
     uint32_t channel_timeout_time;
     int32_t i;
+    int32_t successful_beacons;
+    int32_t retries;
+    int32_t found_channel;
+    int32_t switch_channel;
+    uint32_t cur_time_ms;
+    uint32_t last_time_ms;
 
     int res0;
     uint16_t adcraw0;
@@ -534,13 +574,18 @@ int32_t time_beacons_and_load_cell(ADC_Handle *adc0)
 
     beaconRxSock = enter_tranceiver_mode(channel, 1, 1);
 
-    // just loop until a beacon frame is received successfully
+    // just loop until SUCCESSFUL_BEACONS_THRESH number of beacon frames are received successfully
     clock_gettime(CLOCK_REALTIME, &cur_time);
-    channel_timeout_time = cur_time.tv_sec;
+    channel_timeout_time = 0;
     i = -1; // start at -1 so that the first channel checked is the first elem in channels_to_check[]
+    successful_beacons = 0;
+    retries = 0;
+    found_channel = 0;
+    switch_channel = 0;
     while(1)
     {
         clock_gettime(CLOCK_REALTIME, &cur_time);
+        cur_time_ms = (uint32_t)(cur_time.tv_sec * 1000 + (unsigned long)cur_time.tv_nsec / 1000000);
         numBytes = sl_Recv(beaconRxSock, &Rx_frame, MAX_RX_PACKET_SIZE, 0);
 
         if(numBytes != SL_ERROR_BSD_EAGAIN)
@@ -552,13 +597,34 @@ int32_t time_beacons_and_load_cell(ADC_Handle *adc0)
                            SL_SOCKET_ERROR);
                 continue;
             }
-            // otherwise at this point the first successful beacon should have been received from the specified AP MAC addy
-            UART_PRINT("Beacon frame found from AP with SSID \"%s\" on channel %d\n\r", AP_SSID, channel);
-            break;
+
+            parse_beacon_frame(Rx_frame, &frameInfo, 0);
+            found_channel = 1;
+            retries++;
+
+            if(cur_time_ms - last_time_ms <= frameInfo.beaconIntervalUs/1000)
+            {
+                successful_beacons++;
+                if(successful_beacons == SUCCESSFUL_BEACONS_THRESH)
+                {
+                    UART_PRINT("Beacon frame found from AP with SSID \"%s\" on channel %d\n\r", AP_SSID, channel);
+                    break;
+                }
+            }
+
+            if(retries == SUCCESSFUL_BEACONS_THRESH)
+            {
+                found_channel = 0;
+                retries = 0;
+                successful_beacons = 0;
+                switch_channel = 1;
+            }
+
+            last_time_ms = cur_time_ms;
         }
 
         // change channel every CHANNEL_TIMEOUT to see if the AP is broadcasting on a diff channel
-        if(cur_time.tv_sec - channel_timeout_time > CHANNEL_TIMEOUT)
+        if((channel_timeout_time != 0 && cur_time_ms/1000 - channel_timeout_time > CHANNEL_TIMEOUT | switch_channel) && !found_channel)
         {
             UART_PRINT("No beacon frames found from AP with SSID \"%s\" on channel %d in past %d seconds\n\r", AP_SSID, channel, CHANNEL_TIMEOUT);
             status = sl_Close(beaconRxSock);
@@ -572,6 +638,8 @@ int32_t time_beacons_and_load_cell(ADC_Handle *adc0)
 
             UART_PRINT("Switching to channel %d to check for beacon frames from AP with SSID \"%s\"\n\r", channel, AP_SSID);
             beaconRxSock = enter_tranceiver_mode(channel, 0, 0);
+
+            switch_channel = 0;
         }
     }
 
@@ -1018,7 +1086,7 @@ _u32 parse_beacon_frame(uint8_t * Rx_frame, frameInfo_t * frameInfo, uint8_t pri
         memcpy(frameInfo->bssid,&Rx_frame[hdrOfs+16], 6);
         frameInfo->seqCtrl = Rx_frame[hdrOfs+23] | (Rx_frame[hdrOfs+22] << 8);
         frameInfo->beaconInterval = Rx_frame[hdrOfs+32] | (Rx_frame[hdrOfs+33] << 8); // remember beacon interval is backwards
-        frameInfo->beaconIntervalMs = frameInfo->beaconInterval * 1024;
+        frameInfo->beaconIntervalUs = frameInfo->beaconInterval * 1024;
         frameInfo->capabilityInfo = Rx_frame[hdrOfs+35] | (Rx_frame[hdrOfs+34] << 8);
         frameInfo->ssidElemId = Rx_frame[hdrOfs+36];
         frameInfo->ssidLen = Rx_frame[hdrOfs+37];

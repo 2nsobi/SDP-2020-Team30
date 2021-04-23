@@ -37,13 +37,14 @@
 #define MAX_RX_PACKET_SIZE          1544
 #define MAX_TX_PACKET_SIZE          100000
 #define BEACON_TIME_TRIGGER         2000    // in ms
-#define START_CHANNEL               11
+#define START_CHANNEL               1
 //#define MAC_FILTER_ARGS           " -f S_MAC -v 58:FB:84:5D:70:05 -e not_equals -a drop -m L1"
 //#define MAC_FILTER_ARGS           " -f S_MAC -v 58:00:e3:43:6b:63 -e not_equals -a drop -m L1"
 //#define MAC_FILTER_ARGS           " -f S_MAC -v 6a:00:e3:43:6b:63 -e not_equals -a drop -m L1"
 //#define MAC_FILTER_ARGS           " -f S_MAC -v BE:91:80:53:29:14 -e not_equals -a drop -m L1"
 #define MAC_FILTER_ARGS             " -f S_MAC -v 6C:B0:CE:85:7B:D8 -e not_equals -a drop -m L1"
-#define CHANNEL_TIMEOUT             5       //in sec
+#define CHANNEL_TIMEOUT             1       //in sec
+#define SUCCESSFUL_BEACONS_THRESH   30
 
 typedef struct
 {
@@ -55,7 +56,7 @@ typedef struct
     uint16_t seqCtrl;
     uint32_t timestamp;
     uint16_t beaconInterval;
-    uint32_t beaconIntervalMs;
+    uint32_t beaconIntervalUs;
     uint16_t capabilityInfo;
     uint8_t ssidElemId;
     uint8_t ssidLen;
